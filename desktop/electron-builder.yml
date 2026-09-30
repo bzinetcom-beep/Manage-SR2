@@ -1,0 +1,80 @@
+appId: ir.srms.desktop
+productName: SRMS
+copyright: © 1404 SRMS
+
+directories:
+  output: ../dist-desktop
+  buildResources: build
+
+# Only the Electron shell lives inside the asar. The Next.js standalone server
+# is shipped as a plain folder under resources/app so Node can require() it.
+files:
+  - main.js
+  - preload.js
+  - splash.html
+  - lib/**/*
+  - build/icon.*
+  - node_modules/**/*
+  - "!**/*.map"
+  - "!**/test/**"
+  - "!**/__tests__/**"
+
+extraResources:
+  # Staged by scripts/make-dist.mjs — the compiled application.
+  - from: ../.desktop-stage/app
+    to: app
+  # Optional: drop portable PostgreSQL binaries here to enable the embedded
+  # database tier (see ONE_CLICK_DEPLOYMENT.md → "Embedded PostgreSQL").
+  - from: ../.desktop-stage/pgsql
+    to: pgsql
+    filter:
+      - "**/*"
+
+asar: true
+asarUnpack:
+  - node_modules/@electric-sql/**
+  - node_modules/pg/**
+
+compression: maximum
+removePackageScripts: true
+buildDependenciesFromSource: false
+npmRebuild: false
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+    - target: portable
+      arch: [x64]
+  icon: build/icon.png
+  artifactName: SRMS-Setup-${version}.${ext}
+  requestedExecutionLevel: asInvoker # never require admin rights
+
+portable:
+  artifactName: SRMS-Portable-${version}.${ext}
+  unpackDirName: SRMS
+
+nsis:
+  oneClick: false # show a short, friendly wizard
+  perMachine: false # install per-user → no UAC prompt
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: SRMS
+  runAfterFinish: true
+  deleteAppDataOnUninstall: false # never destroy customer data
+  installerLanguages:
+    - en_US
+  include: build/installer.nsh
+
+mac:
+  target: [dmg]
+  icon: build/icon.png
+  category: public.app-category.business
+  artifactName: SRMS-${version}.${ext}
+
+linux:
+  target: [AppImage]
+  icon: build/icon.png
+  category: Office
+  artifactName: SRMS-${version}.${ext}

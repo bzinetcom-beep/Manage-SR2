@@ -1,0 +1,23 @@
+{
+  "format": "srms-update",
+  "formatVersion": 1,
+  "version": "1.4.0",
+  "minVersion": "1.0.0",
+  "title": "بروزرسانی 1.4.0 سامانه مدیریت منابع سرباز",
+  "createdAt": "2026-09-16T09:05:10.041Z",
+  "changelog": [
+    "ماژول کامل پشتیبان‌گیری و بازیابی: تنظیمات مسیر ذخیره، پشتیبان‌گیری خودکار روزانه/هفتگی، نگهداری نسخه‌ها و بازیابی یک‌کلیکه با نسخه اطمینان پیش از بازیابی",
+    "انتخاب گیرندگان در «تولید انبوه نامه» اکنون به‌صورت پیش‌فرض فقط سربازان در حال خدمت را نمایش می‌دهد (+ فیلتر تسویه‌شده/همه) و امکان آپلود فایل اکسل سربازان دلخواه وجود دارد",
+    "پیش‌نمایش و ویرایش متن نامه‌ها به‌صورت گرافیکی (WYSIWYG شبیه Word) انجام می‌شود؛ دیگر نیازی به کار با کد HTML نیست",
+    "ویرایشگر گرافیکی قالب‌های نامه با نوار ابزار کامل (فونت، اندازه، رنگ، تراز، فهرست، جدول) و درج داده سرباز به‌صورت تراشه",
+    "امکان ویرایش اختصاصی متن نامه‌ی یک سرباز خاص در میان دسته‌ی انبوه",
+    "فهرست‌بندی جدید سایدبار: «پشتیبان‌گیری و بازیابی» و ابزار خط فرمان scripts/backup.mjs و scripts/restore.mjs",
+    "نصاب ویزاردی ویندوز با سازوکار خودترمیم (installer/SRMS-Setup-Wizard.bat)",
+    "README کامل با راهنمای نصب و اجرای حالت توسعه و تولید"
+  ],
+  "database": {
+    "sql": "-- =============================================================\n--  SRMS update: ماژول پشتیبان‌گیری و بازیابی (Backup & Restore)\n--  Idempotent: اجرای چندباره بدون خطاست.\n-- =============================================================\nCREATE TABLE IF NOT EXISTS backup_settings (\n  id SERIAL PRIMARY KEY,\n  directory TEXT NOT NULL DEFAULT 'backups',\n  auto_enabled BOOLEAN NOT NULL DEFAULT true,\n  frequency TEXT NOT NULL DEFAULT 'daily',\n  time_of_day TEXT NOT NULL DEFAULT '02:00',\n  day_of_week INTEGER NOT NULL DEFAULT 6,\n  retention_count INTEGER NOT NULL DEFAULT 30,\n  include_audit BOOLEAN NOT NULL DEFAULT true,\n  last_auto_backup_at TIMESTAMPTZ,\n  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()\n);\n\nCREATE TABLE IF NOT EXISTS backup_runs (\n  id SERIAL PRIMARY KEY,\n  file_name TEXT NOT NULL,\n  file_path TEXT NOT NULL,\n  size_bytes INTEGER NOT NULL DEFAULT 0,\n  kind TEXT NOT NULL DEFAULT 'manual',\n  status TEXT NOT NULL DEFAULT 'success',\n  table_counts JSONB DEFAULT '{}'::jsonb,\n  duration_ms INTEGER NOT NULL DEFAULT 0,\n  app_version TEXT,\n  error_message TEXT,\n  restored_at TIMESTAMPTZ,\n  created_by INTEGER,\n  created_by_name TEXT,\n  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()\n);\n\nINSERT INTO backup_settings (directory, auto_enabled, frequency, time_of_day)\nSELECT 'backups', true, 'daily', '02:00'\nWHERE NOT EXISTS (SELECT 1 FROM backup_settings);\n\n-- پیش‌فرض: نامه‌های تولیدشده برای سربازان در حال خدمت\nCREATE INDEX IF NOT EXISTS soldiers_service_end_idx ON soldiers (service_end_date);",
+    "rollbackSql": "DROP TABLE IF EXISTS backup_runs;\nDROP TABLE IF EXISTS backup_settings;\nDROP INDEX IF EXISTS soldiers_service_end_idx;"
+  },
+  "files": []
+}

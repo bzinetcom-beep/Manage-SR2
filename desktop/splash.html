@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:;" />
+    <title>SRMS</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      html, body {
+        height: 100%;
+        font-family: "Segoe UI", Tahoma, "Iranian Sans", sans-serif;
+        background: transparent;
+        overflow: hidden;
+        user-select: none;
+        cursor: default;
+      }
+      .card {
+        height: 100%;
+        border-radius: 16px;
+        background: linear-gradient(150deg, #0b1a33 0%, #12294d 55%, #1c3c6e 100%);
+        color: #eaf1ff;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 18px;
+        padding: 32px 28px;
+        border: 1px solid rgba(255, 255, 255, 0.09);
+        position: relative;
+        -webkit-app-region: drag;
+      }
+      .card::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: 16px;
+        background: radial-gradient(circle at 50% 0%, rgba(96, 165, 250, 0.22), transparent 62%);
+        pointer-events: none;
+      }
+      .badge {
+        width: 74px; height: 74px; border-radius: 20px;
+        background: linear-gradient(145deg, #1e4e9c, #0e2a55);
+        display: grid; place-items: center;
+        font-size: 34px;
+        box-shadow: 0 10px 30px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.16);
+      }
+      h1 { font-size: 19px; font-weight: 700; letter-spacing: .2px; }
+      .sub { font-size: 12px; color: #9fb6d9; margin-top: -10px; }
+      .bar {
+        width: 100%; height: 6px; border-radius: 99px;
+        background: rgba(255,255,255,.10); overflow: hidden;
+      }
+      .fill {
+        height: 100%; width: 8%; border-radius: 99px;
+        background: linear-gradient(90deg, #3b82f6, #22d3ee);
+        transition: width .45s cubic-bezier(.4,0,.2,1);
+        box-shadow: 0 0 12px rgba(59,130,246,.7);
+      }
+      .status {
+        font-size: 13px; color: #cfe0f8; min-height: 20px; text-align: center;
+        line-height: 1.7;
+      }
+      .hint { font-size: 11px; color: #7f97bd; text-align: center; line-height: 1.8; }
+      .err {
+        display: none; width: 100%; max-height: 118px; overflow: auto;
+        background: rgba(220, 38, 38, .12);
+        border: 1px solid rgba(248, 113, 113, .45);
+        color: #fecaca; border-radius: 10px; padding: 10px 12px;
+        font-size: 11.5px; line-height: 1.85; text-align: right;
+        white-space: pre-wrap; -webkit-app-region: no-drag;
+      }
+      .actions { display: none; gap: 8px; -webkit-app-region: no-drag; }
+      button {
+        font-family: inherit; font-size: 12px; padding: 7px 14px;
+        border-radius: 8px; border: 1px solid rgba(255,255,255,.18);
+        background: rgba(255,255,255,.07); color: #eaf1ff; cursor: pointer;
+      }
+      button:hover { background: rgba(255,255,255,.14); }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="badge">🛡️</div>
+      <h1>سامانه مدیریت منابع سرباز</h1>
+      <div class="sub">Soldier Resource Management System</div>
+      <div class="bar"><div class="fill" id="fill"></div></div>
+      <div class="status" id="status">در حال آماده‌سازی…</div>
+      <div class="hint" id="hint">اولین اجرا ممکن است تا یک دقیقه طول بکشد</div>
+      <div class="err" id="err"></div>
+      <div class="actions" id="actions">
+        <button id="retry">تلاش مجدد</button>
+        <button id="logs">نمایش گزارش خطا</button>
+        <button id="quit">بستن</button>
+      </div>
+    </div>
+    <script>
+      const $ = (id) => document.getElementById(id);
+      const api = window.srms;
+
+      api.onProgress(({ percent, message }) => {
+        if (typeof percent === "number") $("fill").style.width = Math.min(100, percent) + "%";
+        if (message) $("status").textContent = message;
+      });
+
+      api.onError(({ message }) => {
+        $("fill").style.background = "linear-gradient(90deg,#ef4444,#f97316)";
+        $("status").textContent = "اجرای برنامه با مشکل مواجه شد";
+        $("hint").style.display = "none";
+        $("err").style.display = "block";
+        $("err").textContent = message || "خطای نامشخص";
+        $("actions").style.display = "flex";
+      });
+
+      $("retry").onclick = () => api.retry();
+      $("logs").onclick = () => api.openLogs();
+      $("quit").onclick = () => api.quit();
+    </script>
+  </body>
+</html>

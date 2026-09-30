@@ -1,0 +1,45 @@
+{
+  "format": "srms-update",
+  "formatVersion": 1,
+  "version": "1.1.0",
+  "minVersion": "1.0.0",
+  "title": "بهبود جستجو، فیلد هویتی جدید و قانون اعلان سالگرد",
+  "createdAt": "2026-03-24",
+  "changelog": [
+    "افزودن ایندکس جستجو بر اساس «شهر» برای سرعت بیشتر گزارش‌گیری",
+    "افزودن فیلد پویای «کد ملی سرپرست» به بخش هویتی فرم سربازان",
+    "افزودن قانون اعلان «سالگرد ازدواج» برای سربازان متأهل (۳ روز قبل از رویداد)"
+  ],
+  "database": {
+    "sql": "CREATE INDEX IF NOT EXISTS soldiers_city_idx ON soldiers (city);",
+    "rollbackSql": "DROP INDEX IF EXISTS soldiers_city_idx;"
+  },
+  "settings": {
+    "customFields": [
+      {
+        "fieldKey": "guardianNationalCode",
+        "label": "کد ملی سرپرست",
+        "fieldType": "text",
+        "options": [],
+        "section": "هویتی",
+        "isRequired": false,
+        "isSearchable": true,
+        "sortOrder": 5
+      }
+    ],
+    "notificationRules": [
+      {
+        "name": "سالگرد ازدواج سربازان",
+        "description": "یادآوری سالگرد ازدواج سربازان متأهل",
+        "dateField": "marriage_date",
+        "daysBefore": 3,
+        "priority": "normal",
+        "recurrence": "yearly",
+        "filters": { "maritalStatus": "متاهل" },
+        "messageTemplate": "سالگرد ازدواج {{firstName}} {{lastName}} تا {{daysLeft}} روز دیگر ({{eventDate}})",
+        "isActive": true
+      }
+    ]
+  },
+  "files": []
+}

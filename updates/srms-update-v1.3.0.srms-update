@@ -1,0 +1,30 @@
+{
+  "format": "srms-update",
+  "formatVersion": 1,
+  "version": "1.3.0",
+  "minVersion": "1.0.0",
+  "title": "بازطراحی حرفه‌ای فرم‌ها + پنل پیشرفته پیشرفت خدمت",
+  "createdAt": "2026-08-29",
+  "changelog": [
+    "طراحی مجدد کامل فرم‌های کارتکس، ۱۱۱، تسویه حساب و حکم انتقال با استایل رسمی سازمانی (بسمه تعالی، دوکادره، گوشه‌های طلایی، شماره‌گذاری بخش‌ها)",
+    "بهینه‌سازی فشرده‌سازی فرم‌ها برای قرار گرفتن کامل در یک برگ A4 و A5 بدون سرریز",
+    "جدول تأیید رده‌های تسویه حساب به‌صورت دو ستونه با فضای کافی برای مهر و امضا",
+    "افزودن پنل پیشرفته پیشرفت خدمت با مبنای ثابت ۶۳۰ روز و نمایش تفکیکی کسر خدمت / اضافه خدمت / غیبت",
+    "نام‌گذاری خودکار فایل PDF به فرمت «کدملی-نام‌فرم.pdf» هنگام چاپ/ذخیره",
+    "دکمه چاپ با قابلیت انتخاب اندازه کاغذ A4 / A5",
+    "افزودن فیلدهای جدید: اعضا مجروح، محدودیت کاری، کسورات خدمت، انواع مرخصی، کارت‌های صادره، تنظیمات تسویه (همه در metadata بدون نیاز به Migration)",
+    "بهبود راست‌چینی، فونت وزیرمتن و اعداد فارسی در تمام فرم‌ها",
+    "اضافه‌شدن متن گواهی و قاب عکس در فرم ۱۱۱",
+    "ارتقاء سیستم نسخه‌بندی به ۱.۳.۰"
+  ],
+  "database": {
+    "sql": "ALTER TABLE soldiers ADD COLUMN IF NOT EXISTS attachment TEXT;\nINSERT INTO system_meta (key, value) VALUES ('current_version', '\"1.3.0\"'::jsonb) ON CONFLICT (key) DO UPDATE SET value = '\"1.3.0\"'::jsonb, updated_at = NOW();\nINSERT INTO system_meta (key, value) VALUES ('base_version', '\"1.3.0\"'::jsonb) ON CONFLICT (key) DO UPDATE SET value = '\"1.3.0\"'::jsonb, updated_at = NOW();",
+    "rollbackSql": "ALTER TABLE soldiers DROP COLUMN IF EXISTS attachment;\nINSERT INTO system_meta (key, value) VALUES ('current_version', '\"1.2.0\"'::jsonb) ON CONFLICT (key) DO UPDATE SET value = '\"1.2.0\"'::jsonb, updated_at = NOW();\nINSERT INTO system_meta (key, value) VALUES ('base_version', '\"1.2.0\"'::jsonb) ON CONFLICT (key) DO UPDATE SET value = '\"1.2.0\"'::jsonb, updated_at = NOW();"
+  },
+  "settings": {
+    "widgetSettings": null,
+    "customFields": [],
+    "notificationRules": []
+  },
+  "files": []
+}

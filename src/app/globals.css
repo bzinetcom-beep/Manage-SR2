@@ -1,0 +1,1178 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ============ Vazirmatn with multiple weights ============ */
+@font-face {
+  font-family: "Vazirmatn";
+  src: url("https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/fonts/webfonts/Vazirmatn-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Vazirmatn";
+  src: url("https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/fonts/webfonts/Vazirmatn-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Vazirmatn";
+  src: url("https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/fonts/webfonts/Vazirmatn-Bold.woff2") format("woff2");
+  font-weight: 700;
+  font-display: swap;
+}
+
+html, body {
+  font-family: "Vazirmatn", Tahoma, "Segoe UI", system-ui, sans-serif;
+  font-feature-settings: "ss01", "ss02";
+}
+* { box-sizing: border-box; }
+
+input[type="number"], input[dir="ltr"] {
+  direction: ltr;
+  text-align: right;
+}
+
+/* =================================================================
+   Dark mode
+   ================================================================= */
+.dark body,
+.dark .bg-slate-50  { background-color: #0f172a !important; }
+.dark .bg-slate-100 { background-color: #1e293b !important; }
+.dark .bg-white     { background-color: #1e293b !important; }
+.dark .text-slate-900 { color: #e2e8f0 !important; }
+.dark .text-slate-800 { color: #f1f5f9 !important; }
+.dark .text-slate-700 { color: #cbd5e1 !important; }
+.dark .text-slate-600 { color: #94a3b8 !important; }
+.dark .text-slate-500 { color: #64748b !important; }
+.dark .text-slate-400 { color: #475569 !important; }
+.dark .border-slate-200 { border-color: #334155 !important; }
+.dark .border-slate-300 { border-color: #475569 !important; }
+.dark .bg-slate-50, .dark .bg-slate-100 { background-color: #1e293b !important; }
+.dark .divide-slate-100 > * + *,
+.dark .divide-slate-200 > * + * { border-color: #334155 !important; }
+.dark .shadow-sm, .dark .shadow-md, .dark .shadow-lg { box-shadow: 0 4px 12px rgba(0,0,0,0.4) !important; }
+
+.dark input, .dark select, .dark textarea {
+  background-color: #0f172a !important;
+  border-color: #475569 !important;
+  color: #e2e8f0 !important;
+}
+.dark input::placeholder, .dark textarea::placeholder { color: #64748b !important; }
+.dark select option { background-color: #1e293b; color: #e2e8f0; }
+.dark thead { background-color: #0f172a !important; }
+.dark tbody tr:hover { background-color: #334155 !important; }
+
+.scrollbar-thin::-webkit-scrollbar { height: 8px; width: 8px; }
+.scrollbar-thin::-webkit-scrollbar-thumb { background: #475569; border-radius: 8px; }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* =================================================================
+   OFFICIAL FORM SYSTEM — SRMS7
+   طراحی مطابق با استاندارد فرم‌های رسمی سازمانی/نظامی ایران
+   - تایپوگرافی دقیق
+   - حاشیه‌های دولتی (double-borders)
+   - هدر رسمی با «بسمه تعالی»
+   - پالت تک‌رنگ (سیاه/سفید/خاکستری ملایم)
+   - شماره/تاریخ/پیوست در سطر استاندارد
+   - ================================================================= */
+
+:root {
+  /* === سایز و مقیاس === */
+  --doc-w:          210mm;
+  --doc-h:          297mm;
+  --doc-pad:        7mm;
+  --doc-fs:         9.6px;
+  --doc-lh:         1.3;
+
+  /* Padding سلول‌ها */
+  --cell-py:        1.5px;
+  --cell-px:        5px;
+
+  /* === رنگ‌ها (رسمی، سیاه/سفید/طلایی ملایم) === */
+  --ink:            #000000;
+  --ink-soft:       #1a1a1a;
+  --ink-mute:       #4b5563;
+  --ink-faint:      #6b7280;
+  --paper:          #ffffff;
+  --paper-tint:     #f5f5f5;
+  --paper-shade:    #e5e7eb;
+  --rule:           #000000;     /* کادر اصلی */
+  --rule-soft:      #404040;
+  --rule-faint:     #9ca3af;
+  --gold:          #8c6d2f;      /* طلایی سازمانی */
+  --gold-soft:     #e4d2a2;
+
+  /* === فاصله‌ها (با این مقادیر تمام فرم‌ها در یک صفحه A4 و A5 جا می‌شوند) === */
+  --pad-tight:      1px 4px;
+  --pad:            var(--cell-py) var(--cell-px);
+  --pad-loose:      2.5px 5px;
+  --section-pt:     1.5mm;
+  --section-pb:     1mm;
+  --sig-mt:         3mm;
+}
+
+body.size-a5 {
+  --doc-w:        148mm;
+  --doc-h:        210mm;
+  --doc-pad:      4.5mm;
+  --doc-fs:       7px;
+  --cell-py:      0.8px;
+  --cell-px:      3px;
+  --section-pt:   0.8mm;
+  --section-pb:   0.5mm;
+  --sig-mt:       2mm;
+}
+
+@page { size: A4 portrait; margin: 0; }
+@page :blank { margin: 8mm; }
+
+@media print {
+  html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    color: #000 !important;
+  }
+  .no-print { display: none !important; }
+  body > *:not(.print-root) { display: none !important; }
+  .print-root {
+    background: #fff !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  .srms-form {
+    box-shadow: none !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    page-break-after: always;
+    break-after: page;
+  }
+  .srms-form:last-child { page-break-after: auto; break-after: auto; }
+  .srms-form *::before,
+  .srms-form *::after { box-shadow: none !important; }
+}
+
+/* =================================================================
+   صفحه فرم
+   ================================================================= */
+.srms-form {
+  width: var(--doc-w);
+  min-height: var(--doc-h);
+  padding: var(--doc-pad);
+  font-size: var(--doc-fs);
+  line-height: var(--doc-lh);
+  background:
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 10mm,
+      rgba(0,0,0,0.012) 10mm,
+      rgba(0,0,0,0.012) 10.02mm
+    ),
+    #ffffff;
+  color: var(--ink);
+  position: relative;
+  margin: 0 auto;
+  box-shadow:
+    0 0 0 1px rgba(0,0,0,0.06),
+    0 20px 40px -15px rgba(0,0,0,0.25);
+  border-radius: 1mm;
+  font-feature-settings: "ss01","ss02";
+  font-variant-numeric: tabular-nums;
+}
+.srms-form * { max-width: 100%; box-sizing: border-box; }
+
+/* =================================================================
+   بسمه تعالی
+   ================================================================= */
+.bismillah {
+  text-align: center;
+  font-size: 1.05em;
+  font-weight: 700;
+  color: var(--gold);
+  margin-bottom: 1.5mm;
+  margin-top: 0;
+  letter-spacing: 0.12em;
+  font-family: "Vazirmatn", serif;
+  position: relative;
+}
+.bismillah::before,
+.bismillah::after {
+  content: "❋";
+  color: var(--gold);
+  margin: 0 2mm;
+  font-size: 0.8em;
+  opacity: 0.7;
+}
+
+/* =================================================================
+   هدر رسمی فرم
+   ================================================================= */
+/* ===== تزئینات گوشه‌های فرم ===== */
+.srms-form::before,
+.srms-form::after {
+  content: "";
+  position: absolute;
+  width: 8mm;
+  height: 8mm;
+  pointer-events: none;
+}
+.srms-form::before {
+  top: 2mm;
+  inset-inline-start: 2mm;
+  border-top: 1.2pt solid var(--gold);
+  border-inline-start: 1.2pt solid var(--gold);
+}
+.srms-form::after {
+  bottom: 2mm;
+  inset-inline-end: 2mm;
+  border-bottom: 1.2pt solid var(--gold);
+  border-inline-end: 1.2pt solid var(--gold);
+}
+
+.f-header {
+  border: 1.2pt solid var(--rule);
+  padding: 2mm 3mm 2.5mm;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 2mm;
+  margin-bottom: 2mm;
+  background:
+    linear-gradient(180deg, rgba(140,109,47,0.04), transparent 40%),
+    #fff;
+  position: relative;
+}
+.f-header::before {
+  content: "";
+  position: absolute;
+  top: 0.6mm;
+  left: 0.6mm;
+  right: 0.6mm;
+  bottom: 0.6mm;
+  border: 0.4pt solid var(--rule-faint);
+  pointer-events: none;
+}
+/* خط طلایی بسیار نازک زیر سربرگ */
+.f-header::after {
+  content: "";
+  position: absolute;
+  bottom: 0; left: 8mm; right: 8mm;
+  height: 0.6pt;
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  pointer-events: none;
+}
+.f-header__side {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5mm;
+  font-size: 0.7em;
+  position: relative;
+  z-index: 1;
+  min-width: 22mm;
+}
+.f-header__side--left  { text-align: left; }
+.f-header__side--right { text-align: right; }
+.f-header__side .f-meta {
+  display: flex;
+  gap: 1.5mm;
+  align-items: baseline;
+  justify-content: flex-start;
+}
+.f-header__side--right .f-meta { justify-content: flex-end; }
+.f-header__side .f-meta__label {
+  font-weight: 700;
+  white-space: nowrap;
+  color: var(--ink-soft);
+}
+.f-header__side .f-meta__value {
+  min-width: 18mm;
+  border-bottom: 0.5pt solid var(--ink);
+  display: inline-block;
+  text-align: center;
+  padding: 0 1mm;
+  font-weight: 600;
+  min-height: 3mm;
+  line-height: 1.2;
+  color: var(--ink);
+}
+
+.f-header__title-block {
+  text-align: center;
+  position: relative;
+  z-index: 1;
+}
+.f-header__org {
+  font-size: 0.68em;
+  letter-spacing: 0.1em;
+  color: var(--ink-mute);
+  margin-bottom: 0.4mm;
+}
+.f-header__title {
+  font-size: 1.25em;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  margin: 0;
+  line-height: 1.05;
+  color: var(--ink);
+}
+.f-header__subtitle {
+  font-size: 0.7em;
+  color: var(--ink-mute);
+  margin-top: 0.4mm;
+  letter-spacing: 0.02em;
+}
+.f-header__form-no {
+  display: inline-block;
+  background: var(--gold);
+  color: #1a1204;
+  font-weight: 800;
+  padding: 0.1mm 2mm;
+  margin-top: 0.5mm;
+  font-size: 0.68em;
+  letter-spacing: 0.05em;
+  border-radius: 0.6mm;
+  box-shadow: inset 0 0 0 0.3pt rgba(0,0,0,0.15);
+}
+
+/* =================================================================
+   نوار شماره/تاریخ/پیوست استاندارد
+   ================================================================= */
+.f-stamp {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  border: 1pt solid var(--rule);
+  border-bottom: none;
+  margin-bottom: 0;
+}
+.f-stamp__cell {
+  display: flex;
+  align-items: stretch;
+  border-inline-end: 1pt solid var(--rule);
+  min-height: 7.5mm;
+}
+.f-stamp__cell:last-child { border-inline-end: none; }
+.f-stamp__label {
+  background: linear-gradient(180deg, #f3f4f6, #e9ecef);
+  font-weight: 700;
+  font-size: 0.74em;
+  padding: var(--pad);
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+  min-width: 14mm;
+  border-inline-end: 0.4pt solid var(--rule-faint);
+  color: var(--ink-soft);
+}
+.f-stamp__value {
+  flex: 1;
+  padding: var(--pad);
+  display: flex;
+  align-items: center;
+  font-weight: 600;
+  background: #fff;
+  min-width: 0;
+  word-break: break-word;
+  font-size: 0.9em;
+}
+.f-stamp--4 { grid-template-columns: repeat(4, 1fr); }
+
+/* =================================================================
+   عنوان بخش (رسمی، سیاه با خط جداکننده)
+   ================================================================= */
+.f-section {
+  display: flex;
+  align-items: center;
+  gap: 1.5mm;
+  border-top: 0.8pt solid var(--rule);
+  border-bottom: 0.4pt solid var(--rule);
+  background: linear-gradient(180deg, #ffffff 0%, #fafafa 100%);
+  padding: var(--section-pt) 2.5mm var(--section-pb);
+  margin-top: 2mm;
+  margin-bottom: 0;
+  font-weight: 700;
+  font-size: 0.86em;
+  color: var(--ink);
+  page-break-after: avoid;
+  break-after: avoid;
+  position: relative;
+}
+.f-section__num {
+  background: var(--gold);
+  color: #1a1204;
+  font-weight: 800;
+  font-size: 0.78em;
+  padding: 0.1mm 1.6mm;
+  margin-inline-end: 1mm;
+  border-radius: 0.5mm;
+  min-width: 6.5mm;
+  text-align: center;
+  line-height: 1.35;
+  box-shadow: inset 0 0 0 0.3pt rgba(0,0,0,0.15);
+}
+.f-section__title { flex: 0 0 auto; letter-spacing: 0.02em; }
+.f-section__dot {
+  width: 2mm; height: 2mm;
+  background: var(--gold);
+  border-radius: 50%;
+  margin: 0 1mm;
+}
+.f-section__spacer {
+  flex: 1;
+  border-top: 0.4pt dotted var(--rule-faint);
+  margin: 0 1mm;
+}
+
+/* =================================================================
+   گرید فیلدها
+   ================================================================= */
+.f-grid {
+  display: grid;
+  gap: 0;
+  border-inline-start: 0.8pt solid var(--rule-soft);
+  border-bottom: 0.8pt solid var(--rule-soft);
+}
+.f-grid--c1 { grid-template-columns: 1fr; }
+.f-grid--c2 { grid-template-columns: repeat(2, 1fr); }
+.f-grid--c3 { grid-template-columns: repeat(3, 1fr); }
+.f-grid--c4 { grid-template-columns: repeat(4, 1fr); }
+.f-grid--c5 { grid-template-columns: repeat(5, 1fr); }
+
+.f-cell {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: stretch;
+  border-inline-end: 0.8pt solid var(--rule-soft);
+  border-top: 0.8pt solid var(--rule-soft);
+  background: #fff;
+  min-height: 7mm;
+}
+.f-cell__label {
+  background: linear-gradient(180deg, #fafafa, #f3f4f6);
+  color: var(--ink);
+  font-weight: 700;
+  font-size: 0.76em;
+  padding: var(--pad);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  white-space: nowrap;
+  border-inline-end: 0.4pt solid var(--rule-faint);
+  min-width: 20mm;
+  line-height: 1.15;
+}
+.f-cell__value {
+  padding: var(--pad);
+  display: flex;
+  align-items: center;
+  color: var(--ink);
+  font-size: 0.92em;
+  min-width: 0;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  line-height: 1.25;
+  min-height: 5.2mm;
+}
+.f-cell__value:empty::before { content: "\00A0"; }
+
+.f-cell--full { grid-column: 1 / -1; }
+.f-cell--span-2 { grid-column: span 2; }
+.f-cell--span-3 { grid-column: span 3; }
+
+/* =================================================================
+   جعبه متن بلند (آدرس، توضیحات و …)
+   ================================================================= */
+.f-multiline {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  border: 0.6pt solid var(--rule-soft);
+  border-top: none;
+}
+.f-multiline__label {
+  background: linear-gradient(180deg, #fafafa, #f3f4f6);
+  border-inline-end: 0.4pt solid var(--rule-faint);
+  font-weight: 700;
+  padding: var(--pad);
+  font-size: 0.76em;
+  display: flex;
+  align-items: flex-start;
+  min-width: 20mm;
+}
+.f-multiline__value {
+  padding: var(--pad);
+  min-height: 8mm;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  text-align: justify;
+  font-size: 0.9em;
+}
+
+/* =================================================================
+   قاب عکس
+   ================================================================= */
+.f-photo-wrap {
+  display: grid;
+  grid-template-columns: 24mm 1fr;
+  gap: 0;
+  border: 0.8pt solid var(--rule-soft);
+  border-top: none;
+}
+.f-photo {
+  aspect-ratio: 3/4;
+  border-inline-end: 0.6pt solid var(--rule-soft);
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+}
+.f-photo__label {
+  background: linear-gradient(180deg, #f3f4f6, #e9ecef);
+  border-bottom: 0.4pt solid var(--rule-faint);
+  text-align: center;
+  font-size: 0.68em;
+  font-weight: 700;
+  padding: 0.6mm;
+}
+.f-photo__box {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1mm;
+  color: var(--ink-faint);
+  border: 1.2mm dashed var(--rule-faint);
+  margin: 1.2mm;
+  font-size: 0.62em;
+}
+.f-photo__note {
+  padding: 1mm;
+  font-size: 0.65em;
+  text-align: center;
+  color: var(--ink-mute);
+  border-top: 0.3pt solid var(--rule-faint);
+  line-height: 1.3;
+}
+.f-photo-aside {
+  padding: 2mm 2.5mm;
+  background: #fff;
+  font-size: 0.82em;
+  line-height: 1.6;
+  text-align: justify;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* =================================================================
+   جدول رسمی
+   ================================================================= */
+.f-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92em;
+  table-layout: fixed;
+  margin-top: 0;
+}
+.f-table th,
+.f-table td {
+  border: 0.6pt solid var(--rule);
+  padding: 0.8mm 1.5mm;
+  vertical-align: middle;
+}
+.f-table thead th {
+  background: #f0f0f0;
+  color: var(--ink);
+  font-weight: 700;
+  font-size: 0.88em;
+}
+.f-table tbody td { background: #fff; }
+.f-table tbody tr:nth-child(even) td { background: #fafafa; }
+.f-table__num {
+  width: 8mm;
+  text-align: center;
+  font-weight: 700;
+  background: #f5f5f5 !important;
+  font-variant-numeric: tabular-nums;
+}
+.f-table__sign {
+  width: 38mm;
+  min-height: 9mm;
+}
+.f-table__status {
+  width: 22mm;
+  text-align: center;
+  color: var(--ink-mute);
+  font-size: 0.9em;
+}
+.f-table tfoot td {
+  background: #fdf6e3;
+  border-top: 1pt solid var(--rule);
+  padding: 2mm 3mm;
+  font-size: 0.88em;
+  line-height: 1.7;
+  text-align: justify;
+}
+
+/* =================================================================
+   متن پاراگراف رسمی (متن حکم / گواهی)
+   ================================================================= */
+.f-proclamation {
+  border: 0.6pt solid var(--rule-soft);
+  border-top: none;
+  padding: 2.5mm 3mm;
+  line-height: 1.7;
+  font-size: 0.9em;
+  text-align: justify;
+  background:
+    linear-gradient(180deg, #ffffff 0%, #fcfcfd 100%);
+  text-indent: 6mm;
+}
+.f-proclamation b {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+/* =================================================================
+   جعبه تعهدنامه
+   ================================================================= */
+.f-declaration {
+  border: 0.6pt solid var(--rule);
+  background: linear-gradient(180deg, #fcfaf2, #f9f4df);
+  padding: 2mm 3mm;
+  margin-top: 2mm;
+  position: relative;
+}
+.f-declaration::before {
+  content: "";
+  position: absolute;
+  inset: 1mm;
+  border: 0.3pt dashed var(--gold);
+  pointer-events: none;
+}
+.f-declaration__title {
+  font-weight: 800;
+  font-size: 0.9em;
+  margin-bottom: 1.5mm;
+  color: var(--ink);
+  letter-spacing: 0.02em;
+}
+.f-declaration__body {
+  line-height: 1.9;
+  font-size: 0.96em;
+  text-align: justify;
+  position: relative;
+  z-index: 1;
+}
+.f-blank {
+  display: inline-block;
+  min-width: 28mm;
+  border-bottom: 0.6pt solid var(--ink);
+  margin: 0 1mm;
+  height: 1em;
+  vertical-align: baseline;
+}
+
+/* =================================================================
+   ردیف تأیید و ثبت (فرم ۱۱۱)
+   ================================================================= */
+.f-verify {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  border: 0.8pt solid var(--rule-soft);
+  border-top: none;
+}
+.f-verify__cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 15mm;
+  padding: 1.2mm;
+  border-inline-end: 0.4pt solid var(--rule-faint);
+  background: #fff;
+  gap: 1mm;
+}
+.f-verify__cell:last-child { border-inline-end: none; }
+.f-verify__title {
+  font-weight: 700;
+  font-size: 0.68em;
+  text-align: center;
+  line-height: 1.35;
+}
+.f-verify__sign {
+  width: 80%;
+  border-top: 0.6pt solid var(--ink);
+  margin-top: auto;
+  height: 1mm;
+}
+
+/* =================================================================
+   ردیف امضاها
+   ================================================================= */
+.f-signatures {
+  display: grid;
+  gap: 4mm;
+  margin-top: var(--sig-mt);
+}
+.f-signatures--2 { grid-template-columns: repeat(2, 1fr); }
+.f-signatures--3 { grid-template-columns: repeat(3, 1fr); }
+.f-signatures--4 { grid-template-columns: repeat(4, 1fr); }
+.f-signatures--5 { grid-template-columns: repeat(5, 1fr); }
+
+.f-sig {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  text-align: center;
+  min-height: 14mm;
+  position: relative;
+}
+.f-sig__line {
+  position: absolute;
+  bottom: 5mm;
+  left: 10%;
+  right: 10%;
+  border-top: 0.6pt solid var(--ink);
+}
+.f-sig__title {
+  font-weight: 700;
+  font-size: 0.8em;
+  margin-top: auto;
+}
+.f-sig__sub {
+  font-size: 0.7em;
+  color: var(--ink-mute);
+  margin-top: 0.3mm;
+}
+
+/* =================================================================
+   پاورقی
+   ================================================================= */
+.f-footer {
+  margin-top: 3mm;
+  padding-top: 1mm;
+  border-top: 0.8pt solid var(--ink);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.62em;
+  color: var(--ink-mute);
+}
+.f-footer__ref {
+  letter-spacing: 0.1em;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+.f-footer__ref::before {
+  content: "▪ ";
+  color: var(--gold);
+}
+
+/* =================================================================
+   رسپانسیو A5
+   ================================================================= */
+body.size-a5 .f-header { padding: 1.2mm 2mm; }
+body.size-a5 .f-header__title { font-size: 1.1em; }
+body.size-a5 .f-cell__label { min-width: 13mm; font-size: 0.72em; }
+body.size-a5 .f-stamp__label { min-width: 10mm; font-size: 0.68em; }
+body.size-a5 .f-multiline__label { min-width: 13mm; }
+body.size-a5 .f-photo-wrap { grid-template-columns: 17mm 1fr; }
+body.size-a5 .f-sig { min-height: 11mm; }
+body.size-a5 .f-verify__cell { min-height: 12mm; }
+body.size-a5 .bismillah { font-size: 0.9em; margin-bottom: 1mm; }
+body.size-a5 .f-section { margin-top: 1.2mm; }
+body.size-a5 .f-proclamation { padding: 1.5mm 2mm; }
+body.size-a5 .f-declaration { padding: 1.2mm 2mm; margin-top: 1.2mm; }
+
+@media print {
+  .f-cell:hover { background: #fff; }
+}
+
+/* =================================================================
+   جدول دو ستونه تأیید رده‌ها (فرم تسویه حساب)
+   ================================================================= */
+.f-clear-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  grid-auto-rows: 1fr;
+  border: 0.6pt solid var(--rule-soft);
+  border-top: none;
+  gap: 0;
+  flex: 1 0 auto;
+}
+.f-clear-cell {
+  border: 0.4pt solid var(--rule-faint);
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  min-height: 13mm;
+}
+.f-clear-cell__head {
+  display: flex;
+  align-items: center;
+  gap: 1.5mm;
+  padding: 1mm 1.8mm;
+  background: linear-gradient(180deg, #fafafa, #f3f4f6);
+  border-bottom: 0.4pt solid var(--rule-faint);
+  font-size: 0.78em;
+}
+.f-clear-cell__num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 5mm;
+  height: 5mm;
+  border-radius: 0.8mm;
+  background: var(--gold);
+  color: #1a1204;
+  font-weight: 800;
+  font-size: 0.9em;
+  line-height: 1;
+}
+.f-clear-cell__name {
+  flex: 1;
+  font-weight: 700;
+  color: var(--ink);
+}
+.f-clear-cell__check {
+  display: inline-flex;
+  align-items: center;
+  gap: 1mm;
+  font-size: 0.85em;
+  color: var(--ink-mute);
+}
+.f-clear-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.5mm;
+  height: 3.5mm;
+  border: 0.6pt solid var(--ink);
+  border-radius: 0.4mm;
+  font-size: 0.9em;
+  line-height: 1;
+}
+.f-clear-box-label {
+  font-size: 0.9em;
+}
+.f-clear-cell__sign {
+  flex: 1;
+  padding: 1.5mm 2mm;
+  display: flex;
+  flex-direction: column;
+  gap: 1mm;
+}
+.f-clear-cell__sign-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.7em;
+  color: var(--ink-mute);
+  font-weight: 600;
+  margin-bottom: 1mm;
+}
+.f-clear-note {
+  padding: 1.2mm 2mm;
+  background: #fef9c7;
+  border: 0.4pt solid #d4b106;
+  border-top: none;
+  font-size: 0.7em;
+  line-height: 1.5;
+  color: #5b4300;
+  text-align: justify;
+}
+body.size-a5 .f-clear-cell { min-height: 9mm; }
+body.size-a5 .f-clear-cell__head { font-size: 0.68em; padding: 0.6mm 1mm; }
+body.size-a5 .f-clear-cell__sign { padding: 0.8mm 1mm; }
+
+/* =================================================================
+   فرم ۱۱۱ با عکس در گوشه بالا سمت چپ
+   ================================================================= */
+.f111-header {
+  display: grid;
+  grid-template-columns: 28mm 1fr auto;
+  gap: 2mm;
+  border: 1.2pt solid var(--rule);
+  padding: 2mm;
+  margin-bottom: 2mm;
+  background: linear-gradient(180deg, rgba(140,109,47,0.04), transparent 50%), #fff;
+  position: relative;
+  align-items: stretch;
+}
+.f111-header::before {
+  content: "";
+  position: absolute;
+  top: 0.6mm; right: 0.6mm; bottom: 0.6mm; left: 0.6mm;
+  border: 0.4pt solid var(--rule-faint);
+  pointer-events: none;
+}
+.f111-photo-wrap {
+  position: relative;
+  z-index: 1;
+  display: flex;
+}
+.f111-photo {
+  display: flex;
+  flex-direction: column;
+  width: 28mm;
+  aspect-ratio: 3/4;
+  border: 0.8pt solid var(--rule);
+  background: #fff;
+  position: relative;
+  overflow: hidden;
+}
+.f111-photo__ribbon {
+  background: linear-gradient(180deg, var(--gold), #7a5e27);
+  color: #fff;
+  text-align: center;
+  font-size: 0.65em;
+  font-weight: 800;
+  padding: 0.6mm;
+  letter-spacing: 0.05em;
+  border-bottom: 0.4pt solid #5a4418;
+}
+.f111-photo__frame {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1mm;
+  background:
+    repeating-linear-gradient(45deg, rgba(0,0,0,0.02), rgba(0,0,0,0.02) 2px, transparent 2px, transparent 4px),
+    #fff;
+  color: var(--ink-faint);
+}
+.f111-photo__icon { width: 8mm; height: 8mm; opacity: 0.45; }
+.f111-photo__hint {
+  font-size: 0.55em;
+  letter-spacing: 0.05em;
+  color: var(--ink-mute);
+}
+.f111-photo__note {
+  position: absolute;
+  bottom: 1mm;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 0.55em;
+  color: #fff;
+  background: linear-gradient(90deg, transparent, rgba(0,0,0,0.55), transparent);
+  padding: 0.3mm;
+}
+.f111-header__center {
+  text-align: center;
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.8mm;
+  padding: 1mm 2mm;
+  border-inline-end: 0.4pt dashed var(--rule-faint);
+}
+.f111-header__org {
+  display: inline-flex;
+  align-items: center;
+  gap: 1.5mm;
+  font-size: 0.68em;
+  color: var(--ink-mute);
+  letter-spacing: 0.05em;
+}
+.f111-header__dot {
+  width: 3px; height: 3px;
+  background: var(--gold);
+  border-radius: 50%;
+  display: inline-block;
+}
+.f111-header__title {
+  margin: 0;
+  font-size: 1.3em;
+  font-weight: 800;
+  color: var(--ink);
+  line-height: 1.1;
+}
+.f111-header__subtitle {
+  font-size: 0.7em;
+  color: var(--ink-mute);
+}
+.f111-header__badge {
+  display: inline-block;
+  background: var(--gold);
+  color: #1a1204;
+  font-weight: 800;
+  font-size: 0.72em;
+  padding: 0.3mm 2.5mm;
+  border-radius: 1mm;
+  box-shadow: inset 0 0 0 0.3pt rgba(0,0,0,0.15);
+  margin-top: 0.5mm;
+}
+.f111-header__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8mm;
+  position: relative;
+  z-index: 1;
+  min-width: 24mm;
+  justify-content: center;
+  font-size: 0.68em;
+}
+.f111-meta {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 1mm;
+  align-items: baseline;
+}
+.f111-meta__label {
+  font-weight: 700;
+  white-space: nowrap;
+  color: var(--ink-soft);
+}
+.f111-meta__value {
+  min-width: 16mm;
+  border-bottom: 0.5pt solid var(--ink);
+  text-align: center;
+  padding: 0 1mm;
+  font-weight: 600;
+  min-height: 3mm;
+  line-height: 1.2;
+}
+
+.f111-statement {
+  border: 0.6pt solid var(--rule-soft);
+  border-top: none;
+  background: linear-gradient(180deg, #ffffff, #fcfdfd);
+  padding: 2mm 3mm;
+  line-height: 1.8;
+  font-size: 0.9em;
+  text-align: justify;
+  text-indent: 6mm;
+}
+
+body.size-a5 .f111-header { grid-template-columns: 20mm 1fr auto; padding: 1.2mm; gap: 1mm; }
+body.size-a5 .f111-photo { width: 20mm; }
+body.size-a5 .f111-header__title { font-size: 1.05em; }
+body.size-a5 .f111-header__org,
+body.size-a5 .f111-header__meta { font-size: 0.58em; }
+body.size-a5 .f111-header__badge { font-size: 0.62em; padding: 0.2mm 1.5mm; }
+body.size-a5 .f111-statement { padding: 1.2mm 2mm; line-height: 1.5; font-size: 0.8em; }
+
+/* =================================================================
+   کش آمدن فرم تسویه تا پایین صفحه برای پر شدن فضای خالی
+   ================================================================= */
+.srms-form {
+  display: flex;
+  flex-direction: column;
+}
+.srms-form > *:last-child { margin-top: auto; }
+
+/* امضاهای پایانی فرم تسویه را کمی بلندتر کن */
+.settlement-signatures {
+  margin-top: auto;
+  padding-top: 5mm;
+}
+.settlement-signatures .f-sig {
+  min-height: 22mm;
+}
+.settlement-signatures .f-sig__line {
+  bottom: 8mm;
+}
+
+body.size-a5 .settlement-signatures { padding-top: 3mm; }
+body.size-a5 .settlement-signatures .f-sig { min-height: 16mm; }
+body.size-a5 .settlement-signatures .f-sig__line { bottom: 6mm; }
+
+/* فضای امضا در جدول دوسطونه تسویه را بیشتر کن */
+.f-clear-cell { min-height: 14mm; }
+.f-clear-cell__sign {
+  flex: 1;
+  min-height: 8mm;
+  padding: 2mm 2.5mm;
+  display: flex;
+  flex-direction: column;
+  gap: 1mm;
+}
+.f-clear-cell__sign-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.72em;
+  color: var(--ink-mute);
+  font-weight: 600;
+  margin-bottom: 1.5mm;
+  border-bottom: 0.3pt dotted var(--rule-faint);
+  padding-bottom: 0.8mm;
+}
+
+body.size-a5 .f-clear-cell { min-height: 10.5mm; }
+body.size-a5 .f-clear-cell__sign { padding: 1mm 1.5mm; min-height: 5mm; }
+
+/* small utility to hide things that would cause overflow */
+.srms-form .f-grid,
+.srms-form table { page-break-inside: auto; }
+.srms-form thead { display: table-header-group; }
+.srms-form tr, .srms-form .f-cell, .srms-form .f-section {
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+/* =================================================================
+   ویرایشگر گرافیکی نامه (LetterVisualEditor) — WYSIWYG
+   ================================================================= */
+.srms-editor:empty::before {
+  content: attr(data-placeholder);
+  color: #94a3b8;
+  pointer-events: none;
+}
+.srms-editor:focus { outline: none; }
+.srms-editor p { margin: 0 0 8px; }
+.srms-editor table { border-collapse: collapse; }
+.srms-editor td, .srms-editor th { border: 1px solid #94a3b8; padding: 4px 8px; }
+
+.srms-token {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  direction: rtl;
+  padding: 1px 7px 2px;
+  margin: 0 2px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #ecfdf5, #d1fae5);
+  border: 1px solid #34d399;
+  color: #065f46;
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 1.6;
+  vertical-align: baseline;
+  cursor: default;
+  user-select: none;
+  box-shadow: 0 1px 2px rgba(6, 95, 70, 0.15);
+}
+.srms-token:hover { border-color: #059669; background: linear-gradient(180deg, #d1fae5, #a7f3d0); }
+.srms-token::after { content: ""; }
+.srms-token-dot {
+  width: 6px; height: 6px; border-radius: 999px;
+  background: #10b981; display: inline-block; flex: 0 0 auto;
+}
+.dark .srms-token {
+  background: linear-gradient(180deg, #064e3b, #065f46);
+  border-color: #10b981;
+  color: #d1fae5;
+}
+
+/* کاغذ پیش‌نمایش نامه */
+.srms-paper {
+  background: #fff;
+  color: #111;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, .18);
+  border-radius: 2px;
+}
+.srms-paper table { border-collapse: collapse; }
+.srms-paper td, .srms-paper th { border: 1px solid #666; padding: 4px 8px; }
