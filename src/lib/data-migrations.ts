@@ -100,12 +100,24 @@ export async function seedNotificationPresets(client: PoolClient): Promise<numbe
   return created;
 }
 
+/** انواع مرخصی هیچ اثری در تاریخ پایان خدمت ندارند و نباید در جدول service_adjustments باشند. */
+export async function cleanLeaveFromServiceAdjustments(client: PoolClient): Promise<number> {
+  const res = await client.query(`
+    DELETE FROM service_adjustments
+     WHERE type LIKE '%مرخصی%' OR type LIKE '%استحقاق%' OR type LIKE '%استعلاج%' OR type LIKE '%تشویق%'
+  `);
+  // بازمحاسبه پایان خدمت پس از پاکسازی مرخصی‌ها
+  await migrateSoldierDatesAndRanks(client);
+  return res.rowCount || 0;
+}
+
 export async function runDataMigrations(client: PoolClient) {
   const applied = await readApplied(client);
   const steps: { id: string; run: () => Promise<unknown> }[] = [
     { id: "2026-soldier-dates-and-ranks", run: () => migrateSoldierDatesAndRanks(client) },
     { id: "2026-transfer-types", run: () => migrateTransferTypes(client) },
     { id: "2026-notification-presets", run: () => seedNotificationPresets(client) },
+    { id: "2026-purge-leaves-from-adjustments", run: () => cleanLeaveFromServiceAdjustments(client) },
   ];
   for (const step of steps) {
     if (applied.includes(step.id)) continue;

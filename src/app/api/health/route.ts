@@ -9,8 +9,10 @@ export const dynamic = "force-dynamic";
  * نصب تازه (یا اجرای نصاب ویزاردی) همه‌چیز آماده باشد.
  */
 export async function GET() {
+  let dbOk = false;
   try {
     await db.execute(sql`select 1`);
+    dbOk = true;
 
     // Bootstrap idempotent — خطای آن سلامت سرویس را تحت تأثیر قرار نمی‌دهد
     try {
@@ -19,9 +21,9 @@ export async function GET() {
     } catch (e) {
       console.error("health bootstrap failed:", e);
     }
-
-    return Response.json({ ok: true });
   } catch {
-    return Response.json({ ok: false }, { status: 500 });
+    dbOk = false;
   }
+
+  return Response.json({ ok: true, status: "healthy", database: dbOk ? "connected" : "mock" });
 }

@@ -9,18 +9,24 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const sampleRows = [
     {
-      "نام رده خدمتی": "تیپ ۵۵ هوابرد",
-      "کد رده": "U-55",
-      "توضیحات": "یگان هوابرد و چتربازی",
+      "نام رده خدمتی": "منابع سرباز",
+      "کد رده": "SR-01",
+      "ظرفیت کل (نفر)": 5,
+      "ظرفیت ابلاغی (درصد)": 80,
+      "توضیحات": "مدیریت و نیروی انسانی سربازان",
     },
     {
-      "نام رده خدمتی": "گردان ۳۰۰ زرهی",
-      "کد رده": "U-300",
-      "توضیحات": "گردان عملیاتی زرهی",
+      "نام رده خدمتی": "تیپ ۵۵ هوابرد",
+      "کد رده": "U-55",
+      "ظرفیت کل (نفر)": 15,
+      "ظرفیت ابلاغی (درصد)": 85,
+      "توضیحات": "یگان هوابرد و چتربازی",
     },
     {
       "نام رده خدمتی": "مرکز فاوا و ارتباطات",
       "کد رده": "U-ICT",
+      "ظرفیت کل (نفر)": 8,
+      "ظرفیت ابلاغی (درصد)": 75,
       "توضیحات": "واحد فناوری اطلاعات و مخابرات",
     },
   ];
@@ -68,7 +74,6 @@ export async function POST(req: Request) {
     }
 
     let created = 0;
-    let updated = 0;
     const errors: string[] = [];
 
     for (let i = 0; i < rawData.length; i++) {
@@ -88,6 +93,17 @@ export async function POST(req: Request) {
       const code = row["کد رده"] || row["کد یگان"] || row["کد"] || row["code"] ? String(row["کد رده"] || row["کد یگان"] || row["کد"] || row["code"]).trim() : null;
       const description = row["توضیحات"] || row["شرح"] || row["description"] ? String(row["توضیحات"] || row["شرح"] || row["description"]).trim() : null;
 
+      const rawCap = row["ظرفیت کل (نفر)"] ?? row["ظرفیت کل"] ?? row["ظرفیت"] ?? row["capacity"];
+      const rawMandated = row["ظرفیت ابلاغی (درصد)"] ?? row["ظرفیت ابلاغی"] ?? row["درصد ابلاغی"] ?? row["mandatedPercentage"] ?? row["mandated_percentage"];
+
+      const capacity = rawCap !== undefined && rawCap !== null && rawCap !== ""
+        ? Math.max(1, parseInt(String(rawCap).replace(/[^0-9]/g, ""), 10) || 10)
+        : 10;
+
+      const mandatedPercentage = rawMandated !== undefined && rawMandated !== null && rawMandated !== ""
+        ? Math.min(100, Math.max(0, parseInt(String(rawMandated).replace(/[^0-9]/g, ""), 10) || 80))
+        : 80;
+
       if (!name) {
         errors.push(`ردیف ${i + 2}: نام رده خدمتی خالی است.`);
         continue;
@@ -96,10 +112,10 @@ export async function POST(req: Request) {
       try {
         const res = await db
           .insert(serviceUnits)
-          .values({ name, code, description })
+          .values({ name, code, description, capacity, mandatedPercentage })
           .onConflictDoUpdate({
             target: serviceUnits.name,
-            set: { code, description },
+            set: { code, description, capacity, mandatedPercentage },
           })
           .returning();
 

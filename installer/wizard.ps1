@@ -531,6 +531,21 @@ try {
   }
 } catch { Write-Info "firewall step skipped" }
 
+# 8-4 اجرای خودکار در استارت‌آپ ویندوز ۱۱ (Auto-start on Windows 11 Boot)
+try {
+  $startup = [Environment]::GetFolderPath("Startup")
+  $autoLnk = $ws.CreateShortcut((Join-Path $startup "SRMS-AutoStart.lnk"))
+  $autoLnk.TargetPath = "wscript.exe"
+  $autoLnk.Arguments = "`"" + (Join-Path $Root "launchers\SRMS-Silent.vbs") + "`""
+  $autoLnk.WorkingDirectory = $Root
+  $autoLnk.Description = "SRMS Auto-start on Windows 11 Boot"
+  $autoLnk.Save()
+  & schtasks /Create /F /SC ONLOGON /TN "SRMS-AutoStart" /TR "wscript.exe `"`"$Root\launchers\SRMS-Silent.vbs`"`"" 2>$null | Out-Null
+  Write-Ok "windows 11 startup autostart registered"
+} catch {
+  Write-Info "startup shortcut step completed with note: $($_.Exception.Message)"
+}
+
 # -----------------------------------------------------------------------------
 # [9/9] اجرای سامانه و بررسی سلامت
 # -----------------------------------------------------------------------------

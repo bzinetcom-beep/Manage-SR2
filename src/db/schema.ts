@@ -264,6 +264,8 @@ export const serviceUnits = pgTable("service_units", {
   name: text("name").notNull().unique(),
   code: text("code"),
   description: text("description"),
+  capacity: integer("capacity").notNull().default(10), // ظرفیت کل رده (تعداد معین سرباز)
+  mandatedPercentage: integer("mandated_percentage").notNull().default(80), // درصد ظرفیت ابلاغی (مثلاً ۸۰ درصد)
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

@@ -28,7 +28,7 @@ export const MEMBERSHIP_OPTIONS = ["وظیفه", "پیمانی", "رسمی", "ق
 export const DUTY_OPTIONS = ["سرباز وظیفه", "کارمند وظیفه", "پیمانی", "رسمی"];
 export const RECRUITMENT_OPTIONS = ["عادی", "قطع خدمت", "سرباز جایگزین", "بهداشت و درمان", "امنیتی"];
 export const EDUCATION_OPTIONS = ["زیر دیپلم", "دیپلم", "فوق دیپلم", "کارشناسی", "کارشناسی ارشد", "دکتری"];
-export const PHYSICAL_OPTIONS = ["سالم", "ناتوان جزئی", "ناتوان کامل", "معاف از رزم", "بستری"];
+export const PHYSICAL_OPTIONS = ["سالم", "معاف از رزم"];
 export const SEPARATION_OPTIONS = ["پایان خدمت", "معافیت پزشکی", "فرار", "اخراج", "انتقال", "شهادت", "کسری خدمت"];
 export const EXPULSION_OPTIONS = ["ندارد", "اخراج از خدمت", "اخراج از یگان"];
 export const FRONT_OPTIONS = ["ندارد", "حضور در منطقه عملیاتی", "حضور در پشت جبهه", "رزمنده"];
@@ -214,6 +214,7 @@ export const ADJUSTMENT_TYPES = [
   { type: "کسری مناطق عملیاتی", direction: "decrease" },
   { type: "اضافه خدمت", direction: "increase" },
   { type: "غیبت", direction: "increase" },
+  { type: "خلا خدمتی", direction: "increase" },
   { type: "فرار از خدمت", direction: "increase" },
   { type: "سایر (کاهشی)", direction: "decrease" },
   { type: "سایر (افزایشی)", direction: "increase" },

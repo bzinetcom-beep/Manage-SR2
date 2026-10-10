@@ -62,8 +62,8 @@ function getHoliday(jm: number, jd: number): string | null {
 // ═══════════════════════════════════════════════════════════
 export default function LoginPage() {
   const router = useRouter();
-  const [username, setUsername] = useState("admin");
-  const [password, setPassword] = useState("admin123");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [isClient, setIsClient] = useState(false);
@@ -288,7 +288,7 @@ export default function LoginPage() {
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     className="w-full bg-white/[0.04] border border-white/10 focus:border-emerald-500 focus:bg-white/[0.06] rounded-2xl pr-12 pl-4 py-3.5 text-white outline-none transition-all placeholder-white/20 shadow-inner"
-                    placeholder="admin"
+                    placeholder="نام کاربری"
                   />
                 </div>
               </div>
@@ -304,7 +304,7 @@ export default function LoginPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="w-full bg-white/[0.04] border border-white/10 focus:border-emerald-500 focus:bg-white/[0.06] rounded-2xl pr-12 pl-4 py-3.5 text-white outline-none transition-all placeholder-white/20 shadow-inner"
-                    placeholder="••••••••"
+                    placeholder="رمز عبور"
                   />
                 </div>
               </div>
@@ -337,7 +337,7 @@ export default function LoginPage() {
 
             <div className="mt-8 pt-6 border-t border-white/[0.08] flex items-center justify-between text-xs">
               <div className="text-white/40 flex items-center gap-1">
-                تست: <strong className="text-white/70">admin / admin123</strong>
+                <span>سامانه مدیریت منابع سرباز</span>
               </div>
               <div className="flex items-center gap-1.5 text-emerald-400/80">
                 <span className="relative flex h-2 w-2">

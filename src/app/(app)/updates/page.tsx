@@ -564,18 +564,18 @@ export default function UpdatesPage() {
             </div>
           </div>
 
-          {/* Sample download */}
+          {/* Latest update package download */}
           <div className="bg-white rounded-xl border border-slate-200 p-5">
-            <h3 className="font-bold text-slate-700 text-sm mb-2">نمونه فایل بروزرسانی</h3>
+            <h3 className="font-bold text-slate-700 text-sm mb-2">دریافت فایل بروزرسانی جدید</h3>
             <p className="text-xs text-slate-500 leading-5 mb-3">
-              یک بسته‌ی نمونه (نسخه ۱.۱.۰) برای آشنایی با قالب فایل و تست فرآیند اعمال و بازگشت.
+              جدیدترین بسته بروزرسانی رسمی سامانه (نسخه ۱.۶.۰) شامل اصلاح مبنای قانونی ۶۳۰ روز خدمت، ارتقای ایمپورت/اکسپورت اکسل و بهینه‌سازی‌ها.
             </p>
             <a
               href="/api/updates/sample"
               download
-              className="inline-flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white text-sm rounded-lg px-4 py-2 transition w-full justify-center"
+              className="inline-flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 text-white text-sm rounded-lg px-4 py-2 transition w-full justify-center shadow-xs"
             >
-              <Download className="w-4 h-4" /> دانلود <span dir="ltr">srms-update-v1.1.0</span>
+              <Download className="w-4 h-4" /> دانلود فایل <span dir="ltr" className="font-mono">srms-update-v1.6.0</span>
             </a>
           </div>
 

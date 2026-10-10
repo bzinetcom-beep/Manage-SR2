@@ -15,34 +15,39 @@ export const runtime = "nodejs";
 
 type Row = typeof widgetSettings.$inferSelect;
 
-function toPublic(r: Row) {
+function toPublic(r?: Row | null) {
   return {
-    quoteText: r.quoteText,
-    quoteAuthor: r.quoteAuthor,
+    quoteText: r?.quoteText || "خطرناک تر از ناو، سلاحی است که آن را به قعر دریا می فرستد",
+    quoteAuthor: r?.quoteAuthor || "قائد شهید امت",
     // اگر دیتابیس خالی بود ولی تصویر روی دیسک باقی مانده باشد، همان نمایش داده می‌شود
-    quoteImage: r.quoteImage || persistedWidgetImageUrl("quote"),
-    quoteImageFit: r.quoteImageFit || "contain",
-    flagImage: r.flagImage || persistedWidgetImageUrl("flag"),
+    quoteImage: r?.quoteImage || persistedWidgetImageUrl("quote") || "",
+    quoteImageFit: r?.quoteImageFit || "contain",
+    flagImage: r?.flagImage || persistedWidgetImageUrl("flag") || "",
   };
 }
 
-async function loadRow(): Promise<Row> {
-  let row = await db.select().from(widgetSettings).where(eq(widgetSettings.id, 1)).limit(1);
-  if (row.length === 0) {
-    await db.insert(widgetSettings).values({ id: 1 });
-    row = await db.select().from(widgetSettings).where(eq(widgetSettings.id, 1)).limit(1);
+async function loadRow(): Promise<Row | null> {
+  try {
+    let row = await db.select().from(widgetSettings).where(eq(widgetSettings.id, 1)).limit(1);
+    if (!row || row.length === 0) {
+      await db.insert(widgetSettings).values({ id: 1 }).catch(() => {});
+      row = await db.select().from(widgetSettings).where(eq(widgetSettings.id, 1)).limit(1).catch(() => []);
+    }
+    return row && row[0] ? row[0] : null;
+  } catch {
+    return null;
   }
-  return row[0];
 }
 
 // GET: publicly available (used by login page)
 export async function GET() {
   try {
-    await ensureDatabaseInitialized();
-    return Response.json({ data: toPublic(await loadRow()) });
+    await ensureDatabaseInitialized().catch(() => {});
+    const row = await loadRow();
+    return Response.json({ data: toPublic(row) });
   } catch (e) {
     console.error("widget-settings GET failed", e);
-    return Response.json({ error: "خطا در خواندن تنظیمات ویجت" }, { status: 500 });
+    return Response.json({ data: toPublic(null) });
   }
 }
 

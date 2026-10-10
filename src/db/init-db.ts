@@ -10,9 +10,17 @@ export async function ensureDatabaseInitialized() {
   if (!databaseUrl) return;
   isInitialized = true;
 
-  const pool = new Pool({ connectionString: databaseUrl, max: 2 });
-  const client = await pool.connect();
   try {
+    const pool = new Pool({ connectionString: databaseUrl, max: 2, connectionTimeoutMillis: 5000 });
+    let client;
+    try {
+      client = await pool.connect();
+    } catch (connErr) {
+      console.warn("[SRMS] Database unreachable during initialization, skipping:", (connErr as Error)?.message);
+      await pool.end().catch(() => {});
+      return;
+    }
+    try {
     await client.query(`
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY, username TEXT NOT NULL UNIQUE,
@@ -123,7 +131,10 @@ export async function ensureDatabaseInitialized() {
       );`,
       `CREATE TABLE IF NOT EXISTS service_units (
         id SERIAL PRIMARY KEY, name TEXT NOT NULL UNIQUE, code TEXT,
-        description TEXT, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        description TEXT,
+        capacity INTEGER NOT NULL DEFAULT 10,
+        mandated_percentage INTEGER NOT NULL DEFAULT 80,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );`,
       `CREATE TABLE IF NOT EXISTS system_updates (
         id SERIAL PRIMARY KEY, version TEXT NOT NULL, title TEXT NOT NULL DEFAULT '',
@@ -151,6 +162,9 @@ export async function ensureDatabaseInitialized() {
       "ALTER TABLE transfers ADD COLUMN IF NOT EXISTS mission_start_date TEXT",
       "ALTER TABLE transfers ADD COLUMN IF NOT EXISTS mission_end_date TEXT",
       "ALTER TABLE transfers ALTER COLUMN transfer_type SET DEFAULT 'انتقال دائم'",
+      // ظرفیت کل و درصد ابلاغی رده‌های خدمتی
+      "ALTER TABLE service_units ADD COLUMN IF NOT EXISTS capacity INTEGER NOT NULL DEFAULT 10",
+      "ALTER TABLE service_units ADD COLUMN IF NOT EXISTS mandated_percentage INTEGER NOT NULL DEFAULT 80",
     ];
     for (const ddl of patches) {
       await client.query(ddl).catch((e) => console.error("[SRMS] schema patch failed:", ddl, e.message));
@@ -178,8 +192,11 @@ export async function ensureDatabaseInitialized() {
         await client.query("INSERT INTO users (username,password_hash,full_name,role) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING", [u, h, f, r]);
       }
     }
-  } finally {
-    client.release();
-    await pool.end();
+    } finally {
+      client.release();
+      await pool.end();
+    }
+  } catch (err) {
+    console.warn("[SRMS] DB initialization error:", err);
   }
 }

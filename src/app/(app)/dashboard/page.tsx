@@ -5,6 +5,8 @@ import Link from "next/link";
 import { StatCard, BarList, Donut } from "@/components/ui";
 import { toFaDigits } from "@/lib/jalali";
 import DashboardNotifications from "@/components/DashboardNotifications";
+import ServiceUnitModal from "@/components/ServiceUnitModal";
+import { AlertTriangle, Users } from "lucide-react";
 
 interface ReportData {
   kpis: { total: number; married: number; single: number; transfers: number; adjustments: number };
@@ -22,6 +24,8 @@ export default function DashboardPage() {
   const [data, setData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(true);
   const [includeSettled, setIncludeSettled] = useState(false);
+  const [showUnitModal, setShowUnitModal] = useState(false);
+  const [unitSummary, setUnitSummary] = useState<{ shortageCount: number; totalUnits: number } | null>(null);
 
   useEffect(() => {
     try {
@@ -37,6 +41,16 @@ export default function DashboardPage() {
       .then((r) => r.json())
       .then((d) => setData(d))
       .finally(() => setLoading(false));
+
+    fetch("/api/service-units")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.data) {
+          const shortage = (d.data as any[]).filter((u) => u.isShortage).length;
+          setUnitSummary({ shortageCount: shortage, totalUnits: d.data.length });
+        }
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -60,13 +74,52 @@ export default function DashboardPage() {
           <h1 className="text-2xl font-bold text-slate-800">داشبورد</h1>
           <p className="text-slate-500 text-sm mt-1">نمای کلی از وضعیت منابع سرباز</p>
         </div>
-        <Link
-          href="/soldiers/new"
-          className="bg-emerald-600 hover:bg-emerald-700 text-white text-sm rounded-lg px-4 py-2"
-        >
-          ➕ ثبت سرباز جدید
-        </Link>
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => setShowUnitModal(true)}
+            className="inline-flex items-center gap-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-sm rounded-lg px-3.5 py-2 font-semibold shadow-sm transition"
+          >
+            <Users className="w-4 h-4 text-emerald-600" />
+            <span>ظرفیت رده‌های خدمتی</span>
+            {unitSummary && unitSummary.shortageCount > 0 && (
+              <span className="bg-orange-500 text-white text-xs px-2 py-0.5 rounded-full font-bold mr-1">
+                {toFaDigits(unitSummary.shortageCount)} کمبود
+              </span>
+            )}
+          </button>
+          <Link
+            href="/soldiers/new"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white text-sm rounded-lg px-4 py-2 font-medium transition shadow-sm"
+          >
+            ➕ ثبت سرباز جدید
+          </Link>
+        </div>
       </div>
+
+      {/* Shortage Alert Banner (Orange) */}
+      {unitSummary && unitSummary.shortageCount > 0 && (
+        <div className="flex items-center justify-between flex-wrap gap-3 bg-orange-50 border-2 border-orange-400 rounded-xl px-4 py-3 mb-4 text-orange-950 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-orange-500 text-white flex items-center justify-center font-bold">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-sm font-bold">
+                ⚠️ هشدار کمبود نیرو در {toFaDigits(unitSummary.shortageCount)} رده خدمتی
+              </div>
+              <div className="text-xs text-orange-800 mt-0.5">
+                تعداد سربازان حاضر در این رده‌ها کمتر از میزان «ظرفیت ابلاغی» تعیین‌شده توسط ادمین می‌باشد.
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={() => setShowUnitModal(true)}
+            className="px-3.5 py-1.5 bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold rounded-lg transition shadow"
+          >
+            مشاهده رده‌ها و تنظیم ظرفیت
+          </button>
+        </div>
+      )}
 
       {/* Settled visibility toggle */}
       <div className="flex items-center justify-between flex-wrap gap-2 bg-white border border-slate-200 rounded-xl px-4 py-3 mb-4">
@@ -141,6 +194,13 @@ export default function DashboardPage() {
             <BarList title="روند اعزام (به تفکیک سال شمسی)" data={data.dispatchTrend} color="violet" />
           </div>
         </>
+      )}
+
+      {showUnitModal && (
+        <ServiceUnitModal
+          onClose={() => setShowUnitModal(false)}
+          onUnitsChanged={() => load(includeSettled)}
+        />
       )}
     </div>
   );

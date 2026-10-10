@@ -61,9 +61,12 @@ export async function GET(req: Request) {
   if (marital) conds.push(eq(soldiers.maritalStatus, marital));
   if (education) conds.push(ilike(soldiers.educationLevel, `%${education}%`));
 
+  const limitParam = parseInt(searchParams.get("limit") || "", 10);
+  const pageSize = !isNaN(limitParam) && limitParam > 0 ? Math.min(limitParam, 5000) : PAGE_SIZE;
+
   // Show all mode: server-side pagination
   if (showAll === "true") {
-    const offset = (Math.max(1, page) - 1) * PAGE_SIZE;
+    const offset = (Math.max(1, page) - 1) * pageSize;
 
     // Get total count
     const [{ count }] = await db
@@ -76,26 +79,27 @@ export async function GET(req: Request) {
       .from(soldiers)
       .where(and(...conds))
       .orderBy(soldiers.id)
-      .limit(PAGE_SIZE)
+      .limit(pageSize)
       .offset(offset);
 
     return Response.json({
       data: rows,
       total: Number(count),
       page,
-      pageSize: PAGE_SIZE,
-      totalPages: Math.ceil(Number(count) / PAGE_SIZE),
+      pageSize,
+      totalPages: Math.ceil(Number(count) / pageSize),
       showAll: true,
     });
   }
 
   // Default mode: return matching rows with limit (for search)
+  const defaultLimit = !isNaN(limitParam) && limitParam > 0 ? Math.min(limitParam, 5000) : 500;
   const rows = await db
     .select()
     .from(soldiers)
     .where(and(...conds))
     .orderBy(soldiers.id)
-    .limit(100);
+    .limit(defaultLimit);
 
   return Response.json({ data: rows, total: rows.length });
 }
@@ -131,23 +135,27 @@ export async function POST(req: Request) {
       } as typeof soldiers.$inferInsert)
       .returning();
 
-    await logAudit({
-      entity: "soldier",
-      entityId: inserted[0].id,
-      action: "create",
-      user,
-      changes: { after: inserted[0] },
-    });
+    const newId = inserted?.[0]?.id;
 
-    // Real-Time Notification Evaluation Hook
-    try {
-      const { evaluateSoldierNotifications } = await import("@/lib/notification-engine");
-      await evaluateSoldierNotifications(inserted[0].id);
-    } catch (e) {
-      console.error("Realtime notification trigger error:", e);
+    if (newId != null) {
+      await logAudit({
+        entity: "soldier",
+        entityId: newId,
+        action: "create",
+        user,
+        changes: { after: inserted[0] },
+      });
+
+      // Real-Time Notification Evaluation Hook
+      try {
+        const { evaluateSoldierNotifications } = await import("@/lib/notification-engine");
+        await evaluateSoldierNotifications(newId);
+      } catch (e) {
+        console.error("Realtime notification trigger error:", e);
+      }
     }
 
-    return Response.json({ data: inserted[0] }, { status: 201 });
+    return Response.json({ data: inserted?.[0] || { id: newId } }, { status: 201 });
   } catch (e) {
     console.error(e);
     return Response.json({ error: "خطا در ثبت سرباز" }, { status: 500 });

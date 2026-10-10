@@ -23,24 +23,45 @@ export async function GET() {
   });
 
   const existingNames = new Set(units.map((u) => u.name));
-  const rows: any[] = units.map((u, idx) => ({
-    "ردیف": idx + 1,
-    "نام رده خدمتی": u.name,
-    "کد رده": u.code || "",
-    "توضیحات": u.description || "",
-    "تعداد سربازان فعال": countMap.get(u.name) || 0,
-  }));
+  const rows: any[] = units.map((u, idx) => {
+    const active = countMap.get(u.name) || 0;
+    const capacity = Number(u.capacity) > 0 ? Number(u.capacity) : 10;
+    const mandated = u.mandatedPercentage !== null && u.mandatedPercentage !== undefined ? Number(u.mandatedPercentage) : 80;
+    const fillPercent = Math.round((active / capacity) * 100);
+    const isShortage = fillPercent < mandated;
+
+    return {
+      "ردیف": idx + 1,
+      "نام رده خدمتی": u.name,
+      "کد رده": u.code || "",
+      "ظرفیت کل (نفر)": capacity,
+      "ظرفیت ابلاغی (درصد)": `${mandated}%`,
+      "تعداد سربازان فعال": active,
+      "درصد اشغال": `${fillPercent}%`,
+      "وضعیت نیرو": isShortage ? "⚠️ کمبود سرباز" : "✅ مناسب/تکمیل",
+      "توضیحات": u.description || "",
+    };
+  });
 
   let index = rows.length;
   for (const [unitName, count] of countMap.entries()) {
     if (!existingNames.has(unitName)) {
       index++;
+      const capacity = 10;
+      const mandated = 80;
+      const fillPercent = Math.round((count / capacity) * 100);
+      const isShortage = fillPercent < mandated;
+
       rows.push({
         "ردیف": index,
         "نام رده خدمتی": unitName,
         "کد رده": "",
-        "توضیحات": "",
+        "ظرفیت کل (نفر)": capacity,
+        "ظرفیت ابلاغی (درصد)": `${mandated}%`,
         "تعداد سربازان فعال": count,
+        "درصد اشغال": `${fillPercent}%`,
+        "وضعیت نیرو": isShortage ? "⚠️ کمبود سرباز" : "✅ مناسب/تکمیل",
+        "توضیحات": "",
       });
     }
   }

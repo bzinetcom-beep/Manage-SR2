@@ -83,13 +83,25 @@ export default function SoldierForm({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const data = await res.json();
+      const rawText = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(rawText);
+      } catch {
+        data = {};
+      }
       if (!res.ok) {
-        setError(data.error || "خطا در ذخیره");
+        setError(data.error || `خطا در ذخیره (کد وضعیت ${res.status})`);
         return;
       }
-      router.push(`/soldiers/${soldierId || data.data.id}`);
-      router.refresh();
+      const targetId = soldierId || data?.data?.id;
+      if (targetId) {
+        router.push(`/soldiers/${targetId}`);
+        router.refresh();
+      } else {
+        router.push("/soldiers");
+        router.refresh();
+      }
     } catch {
       setError("خطای ارتباط با سرور");
     } finally {

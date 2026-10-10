@@ -84,9 +84,13 @@ async function restoreSnapshot(zipPath) {
 
 /* ---------------------------------- build ---------------------------------- */
 function runBuild() {
-  const args = isWin ? ["next", "build", "--webpack"] : ["run", "build"];
-  const cmd = isWin ? "npx" : "npm";
-  const r = sh(cmd, args);
+  const env = { ...process.env, NODE_ENV: "production", NEXT_TELEMETRY_DISABLED: "1" };
+  const cmd = isWin ? "npm.cmd" : "npm";
+  const r = sh(cmd, ["run", "build"], { env });
+  const fixScript = path.join(ROOT, "scripts", "fix-turbopack-externals.mjs");
+  if (r.status === 0 && fs.existsSync(fixScript)) {
+    sh("node", [fixScript, "--quiet"], { env });
+  }
   return { ok: r.status === 0, out: `${r.stdout || ""}\n${r.stderr || ""}` };
 }
 

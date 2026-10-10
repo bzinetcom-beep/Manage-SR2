@@ -28,6 +28,7 @@ export default function ChatResponseRenderer({ message }: { message: ChatMessage
     if (!message.data || message.data.length === 0) return [];
     const sample = message.data[0];
     return [
+      { key: "fullName", label: "نام و نشان" },
       { key: "firstName", label: "نام" },
       { key: "lastName", label: "نام خانوادگی" },
       { key: "personnelCode", label: "کد پرسنلی" },

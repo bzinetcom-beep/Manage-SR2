@@ -59,6 +59,7 @@ export default function JalaliDatePicker({
   onChange,
   placeholder = "مثال: ۱۴۰۲/۰۵/۰۳",
   className = "",
+  align = "right",
   /** Range offered in the year dropdown, relative to the current Jalali year. */
   yearsBack = 80,
   yearsForward = 15,
@@ -67,6 +68,7 @@ export default function JalaliDatePicker({
   onChange: (v: string) => void;
   placeholder?: string;
   className?: string;
+  align?: "right" | "left" | "center";
   yearsBack?: number;
   yearsForward?: number;
 }) {
@@ -233,7 +235,7 @@ export default function JalaliDatePicker({
       )}
 
       {open && (
-        <div className="absolute z-50 mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl p-3 w-72 right-0">
+        <div className={`absolute z-[70] mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl p-3 w-72 ${align === "left" ? "left-0" : align === "center" ? "left-1/2 -translate-x-1/2" : "right-0"} max-w-[calc(100vw-2rem)]`}>
           {/* ── Year / month dropdowns ── */}
           <div className="flex items-center gap-2 mb-3">
             <button

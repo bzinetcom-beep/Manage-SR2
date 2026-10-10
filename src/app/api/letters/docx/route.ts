@@ -32,7 +32,7 @@ export async function GET(req: Request) {
 
   const rows = await db.select().from(letters).where(inArray(letters.id, ids));
   if (!rows.length) return Response.json({ error: "نامه‌ای یافت نشد" }, { status: 404 });
-  const byId = new Map(rows.map((r) => [r.id, r]));
+  const byId = new Map(rows.map((r: any) => [r.id, r]));
   const ordered = ids.map((i) => byId.get(i)).filter(Boolean) as typeof rows;
 
   if (mode === "merged" || (mode === "single" && ordered.length === 1)) {

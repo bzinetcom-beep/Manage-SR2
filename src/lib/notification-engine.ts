@@ -383,67 +383,81 @@ export async function evaluateRuleNotifications(ruleId: number): Promise<{ creat
  * Main engine scan (for scheduled fallback scan of all rules & all soldiers)
  */
 export async function runNotificationEngine(): Promise<{ created: number; rules: number }> {
-  const rules = await db.select().from(notificationRules).where(eq(notificationRules.isActive, true));
-  const today = todayJalali();
-  let created = 0;
+  try {
+    const rules = await db.select().from(notificationRules).where(eq(notificationRules.isActive, true));
+    const today = todayJalali();
+    let created = 0;
 
-  const allSoldiers = await db.select().from(soldiers).where(isNull(soldiers.deletedAt));
-  const missions = await loadMissionMap();
+    const allSoldiers = await db.select().from(soldiers).where(isNull(soldiers.deletedAt));
+    const missions = await loadMissionMap();
 
-  for (const rule of rules) {
-    const daysBefore = rule.daysBefore;
-    const recurrence = (rule.recurrence === "once" ? "once" : "yearly") as "once" | "yearly";
-    const filters = (rule.filters || {}) as Record<string, unknown>;
+    for (const rule of rules) {
+      const daysBefore = rule.daysBefore;
+      const recurrence = (rule.recurrence === "once" ? "once" : "yearly") as "once" | "yearly";
+      const filters = (rule.filters || {}) as Record<string, unknown>;
 
-    const candidates = allSoldiers.filter((s) => soldierMatchesFilters(s, filters));
+      const candidates = allSoldiers.filter((s) => soldierMatchesFilters(s, filters));
 
-    for (const soldier of candidates) {
-      const rawDate = resolveDateValue(soldier, rule.dateField, missions);
-      const baseJalali = parseToJalali(rawDate);
-      if (!baseJalali) continue;
+      for (const soldier of candidates) {
+        const rawDate = resolveDateValue(soldier, rule.dateField, missions);
+        const baseJalali = parseToJalali(rawDate);
+        if (!baseJalali) continue;
 
-      const nextEvent = nextJalaliOccurrence(baseJalali, recurrence);
-      if (!nextEvent) continue;
+        const nextEvent = nextJalaliOccurrence(baseJalali, recurrence);
+        if (!nextEvent) continue;
 
-      const daysLeft = diffDaysJalali(nextEvent, today);
-      if (daysLeft < 0 || daysLeft > daysBefore) continue;
+        const daysLeft = diffDaysJalali(nextEvent, today);
+        if (daysLeft < 0 || daysLeft > daysBefore) continue;
 
-      const dedupeKey = `rule-${rule.id}-soldier-${soldier.id}-${jalaliToStr(nextEvent)}`;
+        const dedupeKey = `rule-${rule.id}-soldier-${soldier.id}-${jalaliToStr(nextEvent)}`;
 
-      const existing = await db
-        .select({ id: notifications.id })
-        .from(notifications)
-        .where(eq(notifications.dedupeKey, dedupeKey))
-        .limit(1);
+        const existing = await db
+          .select({ id: notifications.id })
+          .from(notifications)
+          .where(eq(notifications.dedupeKey, dedupeKey))
+          .limit(1);
 
-      if (existing.length > 0) continue;
+        if (existing.length > 0) continue;
 
-      const message = renderTemplate(rule.messageTemplate, soldier, daysLeft, nextEvent, yearsBetween(baseJalali, nextEvent));
-      const title = `${rule.name} — ${soldier.firstName} ${soldier.lastName}`;
+        const message = renderTemplate(rule.messageTemplate, soldier, daysLeft, nextEvent, yearsBetween(baseJalali, nextEvent));
+        const title = `${rule.name} — ${soldier.firstName} ${soldier.lastName}`;
 
-      await db.insert(notifications).values({
-        ruleId: rule.id,
-        soldierId: soldier.id,
-        dedupeKey,
-        title,
-        message,
-        priority: rule.priority,
-        status: "unread",
-        eventDate: jalaliToStr(nextEvent),
-      });
-      created++;
+        await db.insert(notifications).values({
+          ruleId: rule.id,
+          soldierId: soldier.id,
+          dedupeKey,
+          title,
+          message,
+          priority: rule.priority,
+          status: "unread",
+          eventDate: jalaliToStr(nextEvent),
+        });
+        created++;
+      }
     }
-  }
 
-  if (created > 0) {
-    const unreadCount = await getUnreadCount();
-    realtimeBus.broadcast({
-      type: "notification",
-      action: "recalculated",
-      unreadCount,
-      timestamp: new Date().toISOString(),
-    });
-  }
+    if (created > 0) {
+      const unreadCount = await getUnreadCount();
+      realtimeBus.broadcast({
+        type: "notification",
+        action: "recalculated",
+        unreadCount,
+        timestamp: new Date().toISOString(),
+      });
+    }
 
-  return { created, rules: rules.length };
+    return { created, rules: rules.length };
+  } catch (err: any) {
+    if (
+      err?.code === "28P01" ||
+      err?.message?.includes("password authentication failed") ||
+      err?.message?.includes("ECONNREFUSED") ||
+      err?.cause?.code === "28P01" ||
+      err?.cause?.message?.includes("password authentication failed")
+    ) {
+      console.warn("[SRMS] Notification engine: database is not accessible currently, skipping scan.");
+      return { created: 0, rules: 0 };
+    }
+    throw err;
+  }
 }

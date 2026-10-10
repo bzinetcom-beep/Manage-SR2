@@ -3,6 +3,10 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 
+if (process.env.npm_lifecycle_event === "build" || process.argv.includes("build")) {
+  Object.assign(process.env, { NODE_ENV: "production" });
+}
+
 /**
  * `SRMS_DESKTOP_BUILD=1` is set only by desktop/scripts/make-dist.mjs.
  * In that mode Next emits a self-contained server (.next/standalone) that the
@@ -54,16 +58,12 @@ function resolveAuthSecret(): string | null {
 const authSecret = isDesktopBuild ? null : resolveAuthSecret();
 
 const nextConfig: NextConfig = {
+  output: "standalone",
+  outputFileTracingRoot: process.cwd(),
   // آپلود فایل ZIP کامل سامانه (بروزرسانی) و تصاویر: سقف پیش‌فرض ۱۰ مگابایت است
   experimental: {
     proxyClientMaxBodySize: "300mb",
   },
-  ...(isDesktopBuild
-    ? {
-        output: "standalone" as const,
-        outputFileTracingRoot: process.cwd(),
-      }
-    : {}),
   ...(authSecret ? { env: { AUTH_SECRET: authSecret } } : {}),
 };
 

@@ -15,7 +15,11 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     .from(serviceAdjustments)
     .where(eq(serviceAdjustments.soldierId, Number(id)))
     .orderBy(serviceAdjustments.id);
-  return Response.json({ data: rows });
+  // مرخصی‌ها در جدول پایان خدمت نمایش داده نمی‌شوند
+  const filtered = rows.filter(
+    (a) => !a.type || (!a.type.includes("مرخصی") && !a.type.includes("استحقاق") && !a.type.includes("استعلاج") && !a.type.includes("تشویق"))
+  );
+  return Response.json({ data: filtered });
 }
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -25,12 +29,19 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   const soldierId = Number(id);
   try {
     const body = await req.json();
+
+    if (body.type && (body.type.includes("مرخصی") || body.type.includes("استحقاق") || body.type.includes("استعلاج") || body.type.includes("تشویق"))) {
+      return Response.json(
+        { error: "مرخصی‌ها هیچ تاثیری در پایان خدمت ندارند و باید در بخش مستقل «مرخصی» ثبت گردند." },
+        { status: 400 }
+      );
+    }
     const inserted = await db
       .insert(serviceAdjustments)
       .values({
         soldierId,
         type: body.type,
-        effectDirection: body.effectDirection === "decrease" ? "decrease" : "increase",
+        effectDirection: body.effectDirection === "decrease" ? "decrease" : body.effectDirection === "neutral" ? "neutral" : "increase",
         days: Number(toEnDigits(String(body.days ?? ""))) || 0,
         effectiveDate: body.effectiveDate || null,
         title: body.title || null,

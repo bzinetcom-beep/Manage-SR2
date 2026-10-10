@@ -504,7 +504,7 @@ async function rollbackOne(row: SystemUpdate, user: SessionUser | null): Promise
 // ---------------------------------------------------------------------------
 // Sample package (downloadable from the UI and shipped in /updates)
 // ---------------------------------------------------------------------------
-export const SAMPLE_UPDATE_PATH = "updates/srms-update-v1.1.0.srms-update";
+export const SAMPLE_UPDATE_PATH = "updates/srms-update-v1.6.0.srms-update";
 
 export function readSamplePackage(): string | null {
   try {

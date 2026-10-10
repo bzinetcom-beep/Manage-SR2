@@ -17,8 +17,18 @@ export async function register() {
       const { runNotificationEngine } = await import("./lib/notification-engine");
       const r = await runNotificationEngine();
       if (r.created > 0) console.log(`[SRMS] notification scan: ${r.created} new notification(s)`);
-    } catch (e) {
-      console.error("[SRMS] notification scan failed", e);
+    } catch (e: any) {
+      if (
+        e?.code === "28P01" ||
+        e?.message?.includes("password authentication failed") ||
+        e?.message?.includes("ECONNREFUSED") ||
+        e?.cause?.code === "28P01" ||
+        e?.cause?.message?.includes("password authentication failed")
+      ) {
+        console.warn("[SRMS] notification scan postponed: database authentication or connection unavailable");
+      } else {
+        console.error("[SRMS] notification scan failed", e);
+      }
     }
   };
   setTimeout(scan, 20_000).unref?.();

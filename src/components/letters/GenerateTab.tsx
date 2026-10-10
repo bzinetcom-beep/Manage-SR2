@@ -76,7 +76,10 @@ export default function GenerateTab({ templates, onGenerated, reloadTemplates }:
   const fileRef = useRef<HTMLInputElement>(null);
 
   const template = useMemo(() => templates.find((t) => t.id === templateId) || null, [templates, templateId]);
-  const selectedRows = useMemo(() => recipients.filter((r) => selected.has(r.id)), [recipients, selected]);
+  const selectedRows = useMemo(
+    () => recipients.filter((r) => r && r.id != null && selected.has(r.id)),
+    [recipients, selected],
+  );
 
   useEffect(() => {
     setLoadingList(true);
@@ -108,12 +111,15 @@ export default function GenerateTab({ templates, onGenerated, reloadTemplates }:
     if (step !== 1) return;
     setSelected((prev) => {
       const n = new Set<number>();
-      recipients.forEach((r) => n.add(r.id));
+      recipients.forEach((r) => {
+        if (r && r.id != null) n.add(r.id);
+      });
       return n;
     });
   }, [step, statusFilter, recipients.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function toggle(id: number) {
+    if (id == null) return;
     setSelected((s) => {
       const n = new Set(s);
       if (n.has(id)) n.delete(id);
@@ -125,7 +131,9 @@ export default function GenerateTab({ templates, onGenerated, reloadTemplates }:
   function selectAllVisible() {
     setSelected((s) => {
       const n = new Set(s);
-      recipients.forEach((r) => n.add(r.id));
+      recipients.forEach((r) => {
+        if (r && r.id != null) n.add(r.id);
+      });
       return n;
     });
   }
@@ -137,17 +145,40 @@ export default function GenerateTab({ templates, onGenerated, reloadTemplates }:
       const fd = new FormData();
       fd.append("file", f);
       const res = await fetch("/api/letters/import-excel", { method: "POST", body: fd });
-      const d = await res.json();
-      if (!res.ok) throw new Error(d.error || "خطا در خواندن فایل");
-      const matched = d.data.matched as { id: number; name: string; serviceUnit: string | null; params: Record<string, string> }[];
+      const rawText = await res.text();
+      let d: any;
+      try {
+        d = JSON.parse(rawText);
+      } catch {
+        throw new Error(`پاسخ سرور در قالب معتبر JSON دریافت نشد (کد وضعیت ${res.status}).`);
+      }
+      if (!res.ok || d?.error) {
+        throw new Error(d?.error || `خطا در خواندن فایل اکسل (کد ${res.status})`);
+      }
+      const rawMatched = Array.isArray(d?.data?.matched) ? d.data.matched : [];
+      const matched = rawMatched.filter((m: any) => m && m.id != null) as {
+        id: number;
+        name: string;
+        serviceUnit: string | null;
+        params: Record<string, string>;
+      }[];
       setSelected(new Set(matched.map((m) => m.id)));
       const per: Record<string, Record<string, string>> = {};
-      for (const m of matched) if (Object.keys(m.params).length) per[String(m.id)] = m.params;
+      for (const m of matched) {
+        if (m && m.id != null && m.params && Object.keys(m.params).length) {
+          per[String(m.id)] = m.params;
+        }
+      }
       setPerSoldier(per);
-      setExcelInfo({ matched: matched.length, unmatched: d.data.unmatched, extraColumns: d.data.extraColumns });
+      setExcelInfo({
+        matched: matched.length,
+        unmatched: Array.isArray(d?.data?.unmatched) ? d.data.unmatched : [],
+        extraColumns: Array.isArray(d?.data?.extraColumns) ? d.data.extraColumns : [],
+      });
       setMsg({ type: "ok", text: `${toFaDigits(matched.length)} سرباز از فایل اکسل شناسایی و انتخاب شد.` });
-    } catch (e) {
-      setMsg({ type: "err", text: (e as Error).message });
+    } catch (e: any) {
+      console.error("[GenerateTab] uploadExcel error:", e);
+      setMsg({ type: "err", text: e?.message || "خطا در پردازش فایل اکسل سربازان" });
     } finally {
       setBusy(false);
       if (fileRef.current) fileRef.current.value = "";
@@ -349,7 +380,15 @@ export default function GenerateTab({ templates, onGenerated, reloadTemplates }:
                 type="file"
                 accept=".xlsx,.xls,.csv"
                 className="hidden"
-                onChange={(e) => e.target.files?.[0] && uploadExcel(e.target.files[0])}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) {
+                    uploadExcel(f).catch((err) => {
+                      console.error("[GenerateTab] Excel upload uncaught error:", err);
+                      setMsg({ type: "err", text: err?.message || "خطای پیش‌بینی‌نشده در آپلود فایل اکسل" });
+                    });
+                  }
+                }}
               />
             </label>
           </div>

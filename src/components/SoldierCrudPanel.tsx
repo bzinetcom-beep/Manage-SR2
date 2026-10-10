@@ -12,9 +12,11 @@ import {
   Loader2,
   CheckCircle2,
   XCircle,
-  Archive,
-  ChevronRight,
-  ChevronLeft,
+  AlertCircle,
+  UserPlus,
+  Check,
+  X,
+  FileSpreadsheet,
 } from "lucide-react";
 import { toFaDigits } from "@/lib/jalali";
 
@@ -34,7 +36,16 @@ interface SoldierRow {
   phoneNumber: string | null;
   physicalStatus?: string | null;
 }
-interface FormState {
+
+interface QuickAddState {
+  firstName: string;
+  lastName: string;
+  nationalCode: string;
+  serviceUnit: string;
+  phoneNumber: string;
+}
+
+interface FullFormState {
   firstName: string;
   lastName: string;
   fatherName: string;
@@ -47,7 +58,16 @@ interface FormState {
   dispatchDate: string;
   phoneNumber: string;
 }
-const EMPTY: FormState = {
+
+const EMPTY_QUICK: QuickAddState = {
+  firstName: "",
+  lastName: "",
+  nationalCode: "",
+  serviceUnit: "",
+  phoneNumber: "",
+};
+
+const EMPTY_FULL: FullFormState = {
   firstName: "",
   lastName: "",
   fatherName: "",
@@ -64,41 +84,64 @@ const EMPTY: FormState = {
 export default function SoldierCrudPanel() {
   const [rows, setRows] = useState<SoldierRow[]>([]);
   const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [q, setQ] = useState("");
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [canWrite, setCanWrite] = useState(true);
   const [toast, setToast] = useState<string | null>(null);
 
-  const [formOpen, setFormOpen] = useState(false);
-  const [editing, setEditing] = useState<SoldierRow | null>(null);
-  const [form, setForm] = useState<FormState>(EMPTY);
-  const [formErr, setFormErr] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
+  // Quick Inline Add state
+  const [quickForm, setQuickForm] = useState<QuickAddState>(EMPTY_QUICK);
+  const [quickSaving, setQuickSaving] = useState(false);
+  const [quickErr, setQuickErr] = useState<string | null>(null);
+  const quickFirstInputRef = useRef<HTMLInputElement>(null);
 
-  const [deleteTarget, setDeleteTarget] = useState<{ ids: number[]; label: string } | null>(null);
-  const [deleting, setDeleting] = useState(false);
+  // Full Modal Form (for Edit or Detailed Add)
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingSoldier, setEditingSoldier] = useState<SoldierRow | null>(null);
+  const [fullForm, setFullForm] = useState<FullFormState>(EMPTY_FULL);
+  const [modalErr, setModalErr] = useState<string | null>(null);
+  const [modalSaving, setModalSaving] = useState(false);
+
+  // Inline Delete confirmation state: soldier id waiting for confirmation
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+
+  // Bulk Delete modal
+  const [bulkDeleteConfirm, setBulkDeleteConfirm] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   const debRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tableContainerRef = useRef<HTMLDivElement>(null);
 
-  const load = useCallback(async (searchQ: string, pg: number) => {
+  // Load all / bulk rows in a single scrollable view
+  const load = useCallback(async (searchQuery: string, limit = 500) => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (searchQ.trim()) {
-        params.set("q", searchQ.trim());
+      if (searchQuery.trim()) {
+        params.set("q", searchQuery.trim());
       } else {
         params.set("showAll", "true");
-        params.set("page", String(pg));
+        params.set("page", "1");
+        params.set("limit", String(limit));
       }
       const res = await fetch(`/api/soldiers?${params}`);
-      const data = await res.json();
-      setRows(data.data || []);
-      setTotal(data.total ?? 0);
-      setTotalPages(data.totalPages ?? 1);
+      const rawText = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(rawText);
+      } catch {
+        data = { data: [] };
+      }
+      const validRows: SoldierRow[] = Array.isArray(data?.data)
+        ? data.data.filter((r: any) => r && r.id != null)
+        : [];
+      setRows(validRows);
+      setTotal(typeof data?.total === "number" ? data.total : validRows.length);
       setSelected(new Set());
+      setConfirmDeleteId(null);
     } catch {
       setRows([]);
     } finally {
@@ -114,12 +157,12 @@ export default function SoldierCrudPanel() {
         if (role === "viewer") setCanWrite(false);
       })
       .catch(() => {});
-    load("", 1);
+    load("", 500);
   }, [load]);
 
   useEffect(() => {
     if (!toast) return;
-    const t = setTimeout(() => setToast(null), 4000);
+    const t = setTimeout(() => setToast(null), 3500);
     return () => clearTimeout(t);
   }, [toast]);
 
@@ -127,15 +170,15 @@ export default function SoldierCrudPanel() {
     setQ(v);
     if (debRef.current) clearTimeout(debRef.current);
     debRef.current = setTimeout(() => {
-      setPage(1);
-      load(v, 1);
-    }, 350);
+      load(v, 500);
+    }, 300);
   }
 
   function toggleAll() {
     if (selected.size === rows.length) setSelected(new Set());
-    else setSelected(new Set(rows.map((r) => r.id)));
+    else setSelected(new Set(rows.filter((r) => r && r.id != null).map((r) => r.id)));
   }
+
   function toggleOne(id: number) {
     const next = new Set(selected);
     if (next.has(id)) next.delete(id);
@@ -143,16 +186,62 @@ export default function SoldierCrudPanel() {
     setSelected(next);
   }
 
-  // ---------------- Create / Update ----------------
-  function openCreate() {
-    setEditing(null);
-    setForm(EMPTY);
-    setFormErr(null);
-    setFormOpen(true);
+  // ---------------- Quick Inline Add ----------------
+  async function submitQuickAdd(e?: React.FormEvent) {
+    if (e) e.preventDefault();
+    if (!quickForm.firstName.trim() || !quickForm.lastName.trim()) {
+      setQuickErr("نام و نام خانوادگی الزامی است");
+      return;
+    }
+    setQuickSaving(true);
+    setQuickErr(null);
+    try {
+      const payload: Record<string, string> = {
+        firstName: quickForm.firstName.trim(),
+        lastName: quickForm.lastName.trim(),
+      };
+      if (quickForm.nationalCode.trim()) payload.nationalCode = quickForm.nationalCode.trim();
+      if (quickForm.serviceUnit.trim()) payload.serviceUnit = quickForm.serviceUnit.trim();
+      if (quickForm.phoneNumber.trim()) payload.phoneNumber = quickForm.phoneNumber.trim();
+
+      const res = await fetch("/api/soldiers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "خطا در ثبت سرباز");
+
+      setToast(`سرباز «${quickForm.firstName} ${quickForm.lastName}» با موفقیت اضافه شد`);
+      setQuickForm(EMPTY_QUICK);
+      quickFirstInputRef.current?.focus();
+      // Reload list to show newly added soldier
+      await load(q, Math.max(500, rows.length + 10));
+    } catch (err) {
+      setQuickErr((err as Error).message);
+    } finally {
+      setQuickSaving(false);
+    }
   }
+
+  // ---------------- Detailed Modal Form ----------------
+  function openDetailedCreate() {
+    setEditingSoldier(null);
+    setFullForm({
+      ...EMPTY_FULL,
+      firstName: quickForm.firstName,
+      lastName: quickForm.lastName,
+      nationalCode: quickForm.nationalCode,
+      serviceUnit: quickForm.serviceUnit,
+      phoneNumber: quickForm.phoneNumber,
+    });
+    setModalErr(null);
+    setModalOpen(true);
+  }
+
   function openEdit(s: SoldierRow) {
-    setEditing(s);
-    setForm({
+    setEditingSoldier(s);
+    setFullForm({
       firstName: s.firstName || "",
       lastName: s.lastName || "",
       fatherName: s.fatherName || "",
@@ -165,21 +254,24 @@ export default function SoldierCrudPanel() {
       dispatchDate: s.dispatchDate || "",
       phoneNumber: s.phoneNumber || "",
     });
-    setFormErr(null);
-    setFormOpen(true);
+    setModalErr(null);
+    setModalOpen(true);
   }
-  async function saveForm() {
-    if (!form.firstName.trim() || !form.lastName.trim()) {
-      setFormErr("نام و نام خانوادگی الزامی است");
+
+  async function saveModalForm() {
+    if (!fullForm.firstName.trim() || !fullForm.lastName.trim()) {
+      setModalErr("نام و نام خانوادگی الزامی است");
       return;
     }
-    setSaving(true);
-    setFormErr(null);
+    setModalSaving(true);
+    setModalErr(null);
     try {
       const payload: Record<string, unknown> = {};
-      for (const [k, v] of Object.entries(form)) if (v.trim()) payload[k] = v.trim();
-      const res = editing
-        ? await fetch(`/api/soldiers/${editing.id}`, {
+      for (const [k, v] of Object.entries(fullForm)) {
+        if (typeof v === "string" && v.trim()) payload[k] = v.trim();
+      }
+      const res = editingSoldier
+        ? await fetch(`/api/soldiers/${editingSoldier.id}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
@@ -189,185 +281,366 @@ export default function SoldierCrudPanel() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
           });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "خطا در ذخیره");
-      setToast(editing ? `«${form.firstName} ${form.lastName}» ویرایش شد` : `«${form.firstName} ${form.lastName}» ثبت شد`);
-      setFormOpen(false);
-      load(q, page);
-    } catch (e) {
-      setFormErr((e as Error).message);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  // ---------------- Delete ----------------
-  async function doDelete(hard: boolean) {
-    if (!deleteTarget) return;
-    setDeleting(true);
-    try {
-      if (deleteTarget.ids.length === 1 && !hard) {
-        const res = await fetch(`/api/soldiers/${deleteTarget.ids[0]}`, { method: "DELETE" });
-        if (!res.ok) throw new Error("حذف ناموفق بود");
-      } else {
-        const res = await fetch("/api/soldiers/bulk", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ids: deleteTarget.ids, hard }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "حذف ناموفق بود");
+      const rawText = await res.text();
+      let data: any = {};
+      try {
+        data = JSON.parse(rawText);
+      } catch {
+        data = {};
       }
+      if (!res.ok) throw new Error(data.error || `خطا در ذخیره اطلاعات (کد ${res.status})`);
+
       setToast(
-        hard
-          ? `${toFaDigits(deleteTarget.ids.length)} رکورد به‌صورت قطعی حذف شد`
-          : `${toFaDigits(deleteTarget.ids.length)} رکورد به آرشیو منتقل شد`,
+        editingSoldier
+          ? `«${fullForm.firstName} ${fullForm.lastName}» ویرایش شد`
+          : `«${fullForm.firstName} ${fullForm.lastName}» ثبت شد`,
       );
-      setDeleteTarget(null);
-      load(q, page);
-    } catch (e) {
-      setToast((e as Error).message);
+      setModalOpen(false);
+      load(q, Math.max(500, rows.length));
+    } catch (err) {
+      setModalErr((err as Error).message);
     } finally {
-      setDeleting(false);
+      setModalSaving(false);
     }
   }
 
-  const searching = q.trim().length > 0;
+  // ---------------- Fast 1-Click Delete ----------------
+  async function executeDelete(id: number, name: string) {
+    setDeletingId(id);
+    try {
+      const res = await fetch(`/api/soldiers/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error || "حذف ناموفق بود");
+      }
+      // Instant optimistic UI update
+      setRows((prev) => prev.filter((r) => r.id !== id));
+      setTotal((t) => Math.max(0, t - 1));
+      setToast(`سرباز «${name}» حذف شد`);
+      setConfirmDeleteId(null);
+    } catch (err) {
+      setToast(`خطا: ${(err as Error).message}`);
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  // ---------------- Bulk Delete ----------------
+  async function executeBulkDelete() {
+    if (selected.size === 0) return;
+    setBulkDeleting(true);
+    try {
+      const ids = Array.from(selected);
+      const res = await fetch("/api/soldiers/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids, hard: true }),
+      });
+      if (!res.ok) throw new Error("حذف گروهی ناموفق بود");
+
+      const deletedCount = ids.length;
+      setRows((prev) => prev.filter((r) => !selected.has(r.id)));
+      setTotal((t) => Math.max(0, t - deletedCount));
+      setSelected(new Set());
+      setBulkDeleteConfirm(false);
+      setToast(`${toFaDigits(deletedCount)} سرباز حذف شدند`);
+    } catch (err) {
+      setToast(`خطا: ${(err as Error).message}`);
+    } finally {
+      setBulkDeleting(false);
+    }
+  }
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-5">
-      <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-5 space-y-4">
+      {/* ── Top Header & Stats ── */}
+      <div className="flex items-center justify-between flex-wrap gap-3 pb-3 border-b border-slate-100 dark:border-slate-700">
         <div>
-          <h2 className="font-bold text-slate-700">۴. مدیریت مستقیم رکوردها (CRUD)</h2>
-          <p className="text-xs text-slate-400 mt-0.5">
-            ایجاد، ویرایش و حذف سربازان مستقیماً روی پایگاه‌داده — {toFaDigits(total)} رکورد
+          <div className="flex items-center gap-2">
+            <span className="p-1.5 bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 rounded-lg">
+              <UserPlus className="w-5 h-5" />
+            </span>
+            <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">
+              ۴. مدیریت مستقیم رکوردها (CRUD سریع و اسکرول یکپارچه)
+            </h2>
+          </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            سربازان در یک صفحه با اسکرول سریع نمایش داده می‌شوند. با فرم زیر می‌توانید فوراً سرباز جدید ثبت کنید یا رکوردهای نامطلوب را حذف کنید.
           </p>
         </div>
-        <div className="flex gap-2 flex-wrap">
+
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs font-semibold px-3 py-1.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200">
+            کل رکوردها: {toFaDigits(total)} | در حال نمایش: {toFaDigits(rows.length)}
+          </span>
+
           <button
-            onClick={() => load(q, page)}
-            className="inline-flex items-center gap-1.5 text-sm text-slate-600 border border-slate-300 hover:bg-slate-50 rounded-lg px-3 py-2 transition"
+            onClick={() => load(q, 500)}
+            disabled={loading}
+            className="inline-flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300 border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg px-3 py-2 transition"
           >
-            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} /> تازه‌سازی
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} /> بروزرسانی لیست
           </button>
-          {canWrite && (
-            <>
-              <button
-                onClick={() => setDeleteTarget({ ids: Array.from(selected), label: `${toFaDigits(selected.size)} رکورد انتخاب‌شده` })}
-                disabled={selected.size === 0}
-                className="inline-flex items-center gap-1.5 text-sm font-bold text-rose-600 border border-rose-300 bg-rose-50 hover:bg-rose-100 rounded-lg px-3 py-2 transition disabled:opacity-40"
-              >
-                <Trash2 className="w-4 h-4" /> حذف انتخاب‌شده‌ها ({toFaDigits(selected.size)})
-              </button>
-              <button
-                onClick={openCreate}
-                className="inline-flex items-center gap-1.5 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg px-4 py-2 transition shadow-md shadow-emerald-600/20"
-              >
-                <Plus className="w-4 h-4" /> سرباز جدید
-              </button>
-            </>
+
+          {canWrite && selected.size > 0 && (
+            <button
+              onClick={() => setBulkDeleteConfirm(true)}
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-300 rounded-lg px-3 py-2 transition"
+            >
+              <Trash2 className="w-3.5 h-3.5" /> حذف گروهی ({toFaDigits(selected.size)})
+            </button>
           )}
         </div>
       </div>
 
-      {/* Search */}
-      <div className="relative mb-4 max-w-md">
-        <Search className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
-        <input
-          value={q}
-          onChange={(e) => onSearch(e.target.value)}
-          placeholder="جستجو: نام، کد ملی، کد پرسنلی، شهر، یگان..."
-          className="w-full border border-slate-300 rounded-lg pr-9 pl-3 py-2 text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none transition"
-        />
+      {/* ── Quick Add Bar (افزودن سریع و آسان بدون دردسر) ── */}
+      {canWrite && (
+        <div className="bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 rounded-xl p-3.5">
+          <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+            <span className="text-xs font-bold text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
+              <span>⚡</span> افزودن سریع سرباز جدید (تکمیل اینتر و ثبت درجا):
+            </span>
+            <button
+              type="button"
+              onClick={openDetailedCreate}
+              className="text-xs text-emerald-700 dark:text-emerald-400 hover:underline font-medium"
+            >
+              + ثبت تفصیلی با تمامی فیلدها (مودال)
+            </button>
+          </div>
+
+          <form onSubmit={submitQuickAdd} className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+            <div>
+              <input
+                ref={quickFirstInputRef}
+                value={quickForm.firstName}
+                onChange={(e) => setQuickForm({ ...quickForm, firstName: e.target.value })}
+                placeholder="نام *"
+                className="w-full bg-white dark:bg-slate-900 border border-emerald-300 dark:border-emerald-700 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-emerald-500 outline-none"
+              />
+            </div>
+            <div>
+              <input
+                value={quickForm.lastName}
+                onChange={(e) => setQuickForm({ ...quickForm, lastName: e.target.value })}
+                placeholder="نام خانوادگی *"
+                className="w-full bg-white dark:bg-slate-900 border border-emerald-300 dark:border-emerald-700 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-emerald-500 outline-none"
+              />
+            </div>
+            <div>
+              <input
+                value={quickForm.nationalCode}
+                onChange={(e) => setQuickForm({ ...quickForm, nationalCode: e.target.value })}
+                placeholder="کد ملی"
+                dir="ltr"
+                className="w-full bg-white dark:bg-slate-900 border border-emerald-300 dark:border-emerald-700 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-emerald-500 outline-none"
+              />
+            </div>
+            <div>
+              <input
+                value={quickForm.serviceUnit}
+                onChange={(e) => setQuickForm({ ...quickForm, serviceUnit: e.target.value })}
+                placeholder="یگان خدمتی"
+                className="w-full bg-white dark:bg-slate-900 border border-emerald-300 dark:border-emerald-700 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-emerald-500 outline-none"
+              />
+            </div>
+            <div>
+              <input
+                value={quickForm.phoneNumber}
+                onChange={(e) => setQuickForm({ ...quickForm, phoneNumber: e.target.value })}
+                placeholder="شماره تماس"
+                dir="ltr"
+                className="w-full bg-white dark:bg-slate-900 border border-emerald-300 dark:border-emerald-700 rounded-lg px-2.5 py-1.5 text-xs focus:ring-2 focus:ring-emerald-500 outline-none"
+              />
+            </div>
+            <div>
+              <button
+                type="submit"
+                disabled={quickSaving}
+                className="w-full inline-flex items-center justify-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-3 py-1.5 text-xs font-bold transition shadow-sm disabled:opacity-50"
+              >
+                {quickSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                ثبت سریع
+              </button>
+            </div>
+          </form>
+
+          {quickErr && (
+            <p className="text-xs text-rose-600 dark:text-rose-400 mt-2 flex items-center gap-1 font-medium">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {quickErr}
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* ── Search & Filter Bar ── */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="relative flex-1 min-w-[240px] max-w-md">
+          <Search className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
+          <input
+            value={q}
+            onChange={(e) => onSearch(e.target.value)}
+            placeholder="جستجوی سریع: نام، کد ملی، یگان، شهر، شماره پرسنلی..."
+            className="w-full border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 rounded-lg pr-9 pl-8 py-2 text-xs focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none transition"
+          />
+          {q && (
+            <button
+              onClick={() => onSearch("")}
+              className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
+        <div className="text-xs text-slate-400">
+          💡 برای مرور سربازان از اسکرول عمودی جدول زیر استفاده کنید.
+        </div>
       </div>
 
-      {/* Table */}
-      <div className="overflow-x-auto scrollbar-thin border border-slate-200 rounded-lg">
-        <table className="w-full text-sm min-w-[760px]">
-          <thead className="bg-slate-50 text-slate-500 text-xs">
+      {/* ── Single Scrollable Table (اسکرول یکپارچه تمام سربازان با هدر چسبان) ── */}
+      <div
+        ref={tableContainerRef}
+        className="max-h-[580px] overflow-y-auto overflow-x-auto scrollbar-thin border border-slate-200 dark:border-slate-700 rounded-xl relative bg-white dark:bg-slate-900"
+      >
+        <table className="w-full text-xs min-w-[780px] border-collapse">
+          <thead className="sticky top-0 z-10 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 shadow-sm border-b border-slate-200 dark:border-slate-700">
             <tr>
               {canWrite && (
-                <th className="p-2.5 w-10">
+                <th className="p-2.5 w-10 text-center">
                   <input
                     type="checkbox"
                     checked={rows.length > 0 && selected.size === rows.length}
                     onChange={toggleAll}
-                    className="accent-emerald-600 w-4 h-4 cursor-pointer"
+                    className="accent-emerald-600 w-3.5 h-3.5 cursor-pointer"
                   />
                 </th>
               )}
-              <th className="p-2.5 text-right">ردیف</th>
-              <th className="p-2.5 text-right">کد پرسنلی</th>
+              <th className="p-2.5 text-right w-14">ردیف</th>
               <th className="p-2.5 text-right">نام و نام خانوادگی</th>
               <th className="p-2.5 text-right">کد ملی</th>
+              <th className="p-2.5 text-right">کد پرسنلی</th>
               <th className="p-2.5 text-right">یگان خدمتی</th>
               <th className="p-2.5 text-right">شماره تماس</th>
-              <th className="p-2.5 text-right">وضعیت جسمانی</th>
+              <th className="p-2.5 text-right">شهر</th>
               <th className="p-2.5 text-right">تاریخ اعزام</th>
-              <th className="p-2.5 text-right">عملیات</th>
+              <th className="p-2.5 text-center w-36">عملیات CRUD</th>
             </tr>
           </thead>
-          <tbody>
-            {rows.map((s) => (
-              <tr
-                key={s.id}
-                className={`border-t border-slate-100 hover:bg-emerald-50/40 transition ${selected.has(s.id) ? "bg-emerald-50/70" : ""}`}
-              >
-                {canWrite && (
-                  <td className="p-2.5">
-                    <input
-                      type="checkbox"
-                      checked={selected.has(s.id)}
-                      onChange={() => toggleOne(s.id)}
-                      className="accent-emerald-600 w-4 h-4 cursor-pointer"
-                    />
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+            {rows.filter((s) => s && s.id != null).map((s, index) => {
+              const isSelected = selected.has(s.id);
+              const isConfirming = confirmDeleteId === s.id;
+              const isDeleting = deletingId === s.id;
+
+              return (
+                <tr
+                  key={s.id}
+                  className={`hover:bg-emerald-50/50 dark:hover:bg-slate-800/80 transition-colors ${
+                    isSelected ? "bg-emerald-50/80 dark:bg-emerald-950/40" : ""
+                  }`}
+                >
+                  {canWrite && (
+                    <td className="p-2.5 text-center">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleOne(s.id)}
+                        className="accent-emerald-600 w-3.5 h-3.5 cursor-pointer"
+                      />
+                    </td>
+                  )}
+                  <td className="p-2.5 text-slate-400 font-mono text-[11px]">
+                    {toFaDigits(s.rowNumber ?? index + 1)}
                   </td>
-                )}
-                <td className="p-2.5 text-slate-400">{toFaDigits(s.rowNumber ?? s.id)}</td>
-                <td className="p-2.5 font-mono text-xs text-slate-500">{s.personnelCode || "—"}</td>
-                <td className="p-2.5 font-bold text-slate-700 whitespace-nowrap">
-                  {s.firstName} {s.lastName}
-                </td>
-                <td className="p-2.5 font-mono text-xs text-slate-500">{s.nationalCode || "—"}</td>
-                <td className="p-2.5 text-slate-600">{s.serviceUnit || "—"}</td>
-                <td className="p-2.5 text-slate-600 text-xs whitespace-nowrap">{s.phoneNumber || "—"}</td>
-                <td className="p-2.5 text-slate-600 text-xs whitespace-nowrap">{s.physicalStatus || "—"}</td>
-                <td className="p-2.5 text-slate-500 text-xs">{s.dispatchDate ? toFaDigits(s.dispatchDate) : "—"}</td>
-                <td className="p-2.5">
-                  <div className="flex items-center gap-1">
-                    <Link
-                      href={`/soldiers/${s.id}`}
-                      title="مشاهده پرونده"
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition"
-                    >
-                      <Eye className="w-4 h-4" />
-                    </Link>
-                    {canWrite && (
-                      <>
+                  <td className="p-2.5 font-bold text-slate-800 dark:text-slate-100 whitespace-nowrap">
+                    {s.firstName} {s.lastName}
+                  </td>
+                  <td className="p-2.5 font-mono text-[11px] text-slate-600 dark:text-slate-300">
+                    {s.nationalCode ? toFaDigits(s.nationalCode) : "—"}
+                  </td>
+                  <td className="p-2.5 font-mono text-[11px] text-slate-500 dark:text-slate-400">
+                    {s.personnelCode ? toFaDigits(s.personnelCode) : "—"}
+                  </td>
+                  <td className="p-2.5 text-slate-700 dark:text-slate-300 whitespace-nowrap">
+                    {s.serviceUnit || "—"}
+                  </td>
+                  <td className="p-2.5 font-mono text-[11px] text-slate-600 dark:text-slate-300 whitespace-nowrap" dir="ltr">
+                    {s.phoneNumber || "—"}
+                  </td>
+                  <td className="p-2.5 text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                    {s.city || "—"}
+                  </td>
+                  <td className="p-2.5 text-slate-500 font-mono text-[11px] whitespace-nowrap">
+                    {s.dispatchDate ? toFaDigits(s.dispatchDate) : "—"}
+                  </td>
+                  <td className="p-2.5 text-center whitespace-nowrap">
+                    {isConfirming ? (
+                      /* ── Inline Quick Delete Confirmation ── */
+                      <div className="inline-flex items-center gap-1 bg-rose-50 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-800 px-2 py-0.5 rounded-lg animate-[fadeIn_.15s_ease]">
+                        <span className="text-[10px] text-rose-700 dark:text-rose-300 font-bold">حذف شود؟</span>
                         <button
-                          onClick={() => openEdit(s)}
-                          title="ویرایش"
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition"
+                          onClick={() => executeDelete(s.id, `${s.firstName} ${s.lastName}`)}
+                          disabled={isDeleting}
+                          className="bg-rose-600 hover:bg-rose-700 text-white rounded p-1 text-[10px] font-bold"
+                          title="تأیید حذف قطعی"
                         >
-                          <Pencil className="w-4 h-4" />
+                          {isDeleting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
                         </button>
                         <button
-                          onClick={() => setDeleteTarget({ ids: [s.id], label: `«${s.firstName} ${s.lastName}»` })}
-                          title="حذف"
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
+                          onClick={() => setConfirmDeleteId(null)}
+                          className="bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded p-1 text-[10px]"
+                          title="انصراف"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <X className="w-3 h-3" />
                         </button>
-                      </>
+                      </div>
+                    ) : (
+                      /* ── Standard Action Buttons ── */
+                      <div className="flex items-center justify-center gap-1">
+                        <Link
+                          href={`/soldiers/${s.id}`}
+                          title="مشاهده پرونده کامل"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-slate-700 transition"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                        </Link>
+                        {canWrite && (
+                          <>
+                            <button
+                              onClick={() => openEdit(s)}
+                              title="ویرایش سریع"
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-700 transition"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => setConfirmDeleteId(s.id)}
+                              title="حذف فوری سرباز"
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-slate-700 transition"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </>
+                        )}
+                      </div>
                     )}
-                  </div>
-                </td>
-              </tr>
-            ))}
+                  </td>
+                </tr>
+              );
+            })}
+
             {rows.length === 0 && (
               <tr>
-                <td colSpan={canWrite ? 9 : 8} className="p-8 text-center text-sm text-slate-400">
-                  {loading ? "در حال بارگذاری..." : "رکوردی یافت نشد"}
+                <td colSpan={canWrite ? 10 : 9} className="p-10 text-center text-slate-400 dark:text-slate-500">
+                  {loading ? (
+                    <div className="flex items-center justify-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
+                      در حال بارگذاری لیست سربازان...
+                    </div>
+                  ) : (
+                    "هیچ سربازی یافت نشد. با فرم بالا اولین سرباز را ثبت کنید."
+                  )}
                 </td>
               </tr>
             )}
@@ -375,187 +648,222 @@ export default function SoldierCrudPanel() {
         </table>
       </div>
 
-      {/* Pagination */}
-      {!searching && totalPages > 1 && (
-        <div className="flex items-center justify-between mt-3">
-          <div className="text-xs text-slate-400">
-            صفحه {toFaDigits(page)} از {toFaDigits(totalPages)}
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => {
-                const p = Math.max(1, page - 1);
-                setPage(p);
-                load(q, p);
-              }}
-              disabled={page <= 1}
-              className="inline-flex items-center gap-1 text-xs border border-slate-300 rounded-lg px-3 py-1.5 hover:bg-slate-50 disabled:opacity-40 transition"
-            >
-              <ChevronRight className="w-3.5 h-3.5" /> قبلی
-            </button>
-            <button
-              onClick={() => {
-                const p = Math.min(totalPages, page + 1);
-                setPage(p);
-                load(q, p);
-              }}
-              disabled={page >= totalPages}
-              className="inline-flex items-center gap-1 text-xs border border-slate-300 rounded-lg px-3 py-1.5 hover:bg-slate-50 disabled:opacity-40 transition"
-            >
-              بعدی <ChevronLeft className="w-3.5 h-3.5" />
-            </button>
-          </div>
+      {/* ── Footer status bar ── */}
+      <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 pt-1 flex-wrap gap-2">
+        <div>
+          نمایش {toFaDigits(rows.length)} رکورد به صورت اسکرول یکپارچه (تعداد کل در سیستم: {toFaDigits(total)})
         </div>
-      )}
+        <div className="flex gap-2">
+          {rows.length < total && (
+            <button
+              onClick={() => load(q, rows.length + 500)}
+              disabled={loading}
+              className="text-emerald-600 dark:text-emerald-400 font-bold hover:underline"
+            >
+              + بارگذاری {toFaDigits(Math.min(500, total - rows.length))} رکورد بعدی در همین صفحه
+            </button>
+          )}
+        </div>
+      </div>
 
-      {/* Create/Edit modal */}
-      {formOpen && (
+      {/* ── Detailed Modal Form (ویرایش یا ثبت با تمامی فیلدها) ── */}
+      {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-[2px]" onClick={() => !saving && setFormOpen(false)} />
-          <div className="relative bg-white rounded-xl shadow-2xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto scrollbar-thin animate-[fadeIn_.2s_ease]">
-            <h3 className="font-bold text-slate-800 mb-4">{editing ? `ویرایش: ${editing.firstName} ${editing.lastName}` : "ثبت سرباز جدید"}</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Field label="نام *" value={form.firstName} onChange={(v) => setForm({ ...form, firstName: v })} />
-              <Field label="نام خانوادگی *" value={form.lastName} onChange={(v) => setForm({ ...form, lastName: v })} />
-              <Field label="نام پدر" value={form.fatherName} onChange={(v) => setForm({ ...form, fatherName: v })} />
-              <Field label="کد ملی" value={form.nationalCode} onChange={(v) => setForm({ ...form, nationalCode: v })} />
-              <Field label="کد پرسنلی" value={form.personnelCode} onChange={(v) => setForm({ ...form, personnelCode: v })} />
-              <Field label="یگان خدمتی" value={form.serviceUnit} onChange={(v) => setForm({ ...form, serviceUnit: v })} />
-              <Field label="شهر" value={form.city} onChange={(v) => setForm({ ...form, city: v })} />
-              <Field label="تاریخ اعزام (جلالی)" value={form.dispatchDate} onChange={(v) => setForm({ ...form, dispatchDate: v })} placeholder="1403-01-15" />
-              <Field label="تلفن" value={form.phoneNumber} onChange={(v) => setForm({ ...form, phoneNumber: v })} />
+          <div
+            className="absolute inset-0 bg-slate-900/60 backdrop-blur-[2px]"
+            onClick={() => !modalSaving && setModalOpen(false)}
+          />
+          <div className="relative bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-lg w-full p-6 max-h-[90vh] overflow-y-auto scrollbar-thin animate-[fadeIn_.2s_ease]">
+            <h3 className="font-bold text-slate-800 dark:text-slate-100 text-base mb-4 border-b border-slate-100 dark:border-slate-700 pb-2">
+              {editingSoldier ? `✏️ ویرایش: ${editingSoldier.firstName} ${editingSoldier.lastName}` : "➕ ثبت تفصیلی سرباز"}
+            </h3>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
               <div>
-                <label className="text-xs text-slate-500 block mb-1">وضعیت تأهل</label>
+                <label className="text-slate-500 dark:text-slate-400 block mb-1">نام *</label>
+                <input
+                  value={fullForm.firstName}
+                  onChange={(e) => setFullForm({ ...fullForm, firstName: e.target.value })}
+                  className="w-full border border-slate-300 dark:border-slate-600 rounded-lg p-2 bg-white dark:bg-slate-900"
+                />
+              </div>
+              <div>
+                <label className="text-slate-500 dark:text-slate-400 block mb-1">نام خانوادگی *</label>
+                <input
+                  value={fullForm.lastName}
+                  onChange={(e) => setFullForm({ ...fullForm, lastName: e.target.value })}
+                  className="w-full border border-slate-300 dark:border-slate-600 rounded-lg p-2 bg-white dark:bg-slate-900"
+                />
+              </div>
+              <div>
+                <label className="text-slate-500 dark:text-slate-400 block mb-1">نام پدر</label>
+                <input
+                  value={fullForm.fatherName}
+                  onChange={(e) => setFullForm({ ...fullForm, fatherName: e.target.value })}
+                  className="w-full border border-slate-300 dark:border-slate-600 rounded-lg p-2 bg-white dark:bg-slate-900"
+                />
+              </div>
+              <div>
+                <label className="text-slate-500 dark:text-slate-400 block mb-1">کد ملی</label>
+                <input
+                  value={fullForm.nationalCode}
+                  onChange={(e) => setFullForm({ ...fullForm, nationalCode: e.target.value })}
+                  dir="ltr"
+                  className="w-full border border-slate-300 dark:border-slate-600 rounded-lg p-2 bg-white dark:bg-slate-900"
+                />
+              </div>
+              <div>
+                <label className="text-slate-500 dark:text-slate-400 block mb-1">کد پرسنلی</label>
+                <input
+                  value={fullForm.personnelCode}
+                  onChange={(e) => setFullForm({ ...fullForm, personnelCode: e.target.value })}
+                  dir="ltr"
+                  className="w-full border border-slate-300 dark:border-slate-600 rounded-lg p-2 bg-white dark:bg-slate-900"
+                />
+              </div>
+              <div>
+                <label className="text-slate-500 dark:text-slate-400 block mb-1">یگان خدمتی</label>
+                <input
+                  value={fullForm.serviceUnit}
+                  onChange={(e) => setFullForm({ ...fullForm, serviceUnit: e.target.value })}
+                  className="w-full border border-slate-300 dark:border-slate-600 rounded-lg p-2 bg-white dark:bg-slate-900"
+                />
+              </div>
+              <div>
+                <label className="text-slate-500 dark:text-slate-400 block mb-1">شهر محل سکونت</label>
+                <input
+                  value={fullForm.city}
+                  onChange={(e) => setFullForm({ ...fullForm, city: e.target.value })}
+                  className="w-full border border-slate-300 dark:border-slate-600 rounded-lg p-2 bg-white dark:bg-slate-900"
+                />
+              </div>
+              <div>
+                <label className="text-slate-500 dark:text-slate-400 block mb-1">شماره تماس</label>
+                <input
+                  value={fullForm.phoneNumber}
+                  onChange={(e) => setFullForm({ ...fullForm, phoneNumber: e.target.value })}
+                  dir="ltr"
+                  className="w-full border border-slate-300 dark:border-slate-600 rounded-lg p-2 bg-white dark:bg-slate-900"
+                />
+              </div>
+              <div>
+                <label className="text-slate-500 dark:text-slate-400 block mb-1">تاریخ اعزام (شمسی)</label>
+                <input
+                  value={fullForm.dispatchDate}
+                  onChange={(e) => setFullForm({ ...fullForm, dispatchDate: e.target.value })}
+                  placeholder="مثال: 1403/02/01"
+                  dir="ltr"
+                  className="w-full border border-slate-300 dark:border-slate-600 rounded-lg p-2 bg-white dark:bg-slate-900"
+                />
+              </div>
+              <div>
+                <label className="text-slate-500 dark:text-slate-400 block mb-1">وضعیت تأهل</label>
                 <select
-                  value={form.maritalStatus}
-                  onChange={(e) => setForm({ ...form, maritalStatus: e.target.value })}
-                  className="w-full border border-slate-300 rounded-lg px-2 py-2 text-sm"
+                  value={fullForm.maritalStatus}
+                  onChange={(e) => setFullForm({ ...fullForm, maritalStatus: e.target.value })}
+                  className="w-full border border-slate-300 dark:border-slate-600 rounded-lg p-2 bg-white dark:bg-slate-900"
                 >
                   <option value="">—</option>
                   <option value="مجرد">مجرد</option>
                   <option value="متاهل">متاهل</option>
                 </select>
               </div>
-              <div>
-                <label className="text-xs text-slate-500 block mb-1">تحصیلات</label>
+              <div className="sm:col-span-2">
+                <label className="text-slate-500 dark:text-slate-400 block mb-1">سطح تحصیلات</label>
                 <select
-                  value={form.educationLevel}
-                  onChange={(e) => setForm({ ...form, educationLevel: e.target.value })}
-                  className="w-full border border-slate-300 rounded-lg px-2 py-2 text-sm"
+                  value={fullForm.educationLevel}
+                  onChange={(e) => setFullForm({ ...fullForm, educationLevel: e.target.value })}
+                  className="w-full border border-slate-300 dark:border-slate-600 rounded-lg p-2 bg-white dark:bg-slate-900"
                 >
                   <option value="">—</option>
-                  {["زیر دیپلم", "دیپلم", "فوق دیپلم", "کارشناسی", "کارشناسی ارشد", "دکتری"].map((o) => (
-                    <option key={o} value={o}>{o}</option>
+                  {["زیر دیپلم", "دیپلم", "فوق دیپلم", "کارشناسی", "کارشناسی ارشد", "دکتری"].map((lvl) => (
+                    <option key={lvl} value={lvl}>
+                      {lvl}
+                    </option>
                   ))}
                 </select>
               </div>
             </div>
-            {formErr && (
-              <div className="mt-3 flex items-center gap-2 text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded-lg p-2.5">
-                <XCircle className="w-4 h-4 shrink-0" /> {formErr}
+
+            {modalErr && (
+              <div className="mt-3 text-xs text-rose-600 bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 rounded-lg p-2.5 flex items-center gap-1.5">
+                <XCircle className="w-4 h-4 shrink-0" /> {modalErr}
               </div>
             )}
-            <div className="flex gap-3 justify-end mt-5">
+
+            <div className="flex gap-2 justify-end mt-5 pt-3 border-t border-slate-100 dark:border-slate-700">
               <button
-                onClick={() => setFormOpen(false)}
-                disabled={saving}
-                className="text-sm text-slate-600 hover:bg-slate-100 rounded-lg px-4 py-2 transition"
+                type="button"
+                onClick={() => setModalOpen(false)}
+                disabled={modalSaving}
+                className="text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg px-4 py-2 transition"
               >
                 انصراف
               </button>
               <button
-                onClick={saveForm}
-                disabled={saving}
-                className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-lg px-5 py-2 transition disabled:opacity-60"
+                type="button"
+                onClick={saveModalForm}
+                disabled={modalSaving}
+                className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg px-5 py-2 transition shadow-sm disabled:opacity-50"
               >
-                {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-                {editing ? "ذخیره تغییرات" : "ثبت سرباز"}
+                {modalSaving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                {editingSoldier ? "ذخیره تغییرات" : "ثبت نهایی"}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Delete confirm modal */}
-      {deleteTarget && (
+      {/* ── Bulk Delete Modal ── */}
+      {bulkDeleteConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-[2px]" onClick={() => !deleting && setDeleteTarget(null)} />
-          <div className="relative bg-white rounded-xl shadow-2xl max-w-md w-full p-6 animate-[fadeIn_.2s_ease]">
-            <div className="flex items-start gap-3 mb-4">
-              <span className="w-10 h-10 rounded-full bg-rose-100 flex items-center justify-center shrink-0">
-                <Trash2 className="w-5 h-5 text-rose-600" />
+          <div
+            className="absolute inset-0 bg-slate-900/60 backdrop-blur-[2px]"
+            onClick={() => !bulkDeleting && setBulkDeleteConfirm(false)}
+          />
+          <div className="relative bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-sm w-full p-5 animate-[fadeIn_.2s_ease]">
+            <div className="flex items-center gap-3 text-rose-600 mb-3">
+              <span className="p-2 bg-rose-100 dark:bg-rose-950 rounded-xl">
+                <Trash2 className="w-6 h-6" />
               </span>
               <div>
-                <h3 className="font-bold text-slate-800">حذف {deleteTarget.label}</h3>
-                <p className="text-sm text-slate-500 mt-1 leading-6">نوع حذف را انتخاب کنید:</p>
+                <h3 className="font-bold text-sm text-slate-800 dark:text-slate-100">
+                  حذف {toFaDigits(selected.size)} سرباز انتخاب‌شده
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  آیا از حذف دسته‌جمعی این موارد اطمینان دارید؟
+                </p>
               </div>
             </div>
-            <div className="space-y-2 mb-5">
+
+            <div className="flex gap-2 justify-end mt-5">
               <button
-                onClick={() => doDelete(false)}
-                disabled={deleting}
-                className="w-full flex items-center gap-3 border border-amber-300 bg-amber-50 hover:bg-amber-100 rounded-lg p-3 text-right transition disabled:opacity-60"
+                onClick={() => setBulkDeleteConfirm(false)}
+                disabled={bulkDeleting}
+                className="text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg px-4 py-2 transition"
               >
-                <Archive className="w-5 h-5 text-amber-600 shrink-0" />
-                <span>
-                  <span className="block text-sm font-bold text-amber-800">حذف معمولی (انتقال به آرشیو)</span>
-                  <span className="block text-xs text-amber-600 mt-0.5">رکورد از دید سامانه پنهان می‌شود ولی در پایگاه‌داده باقی می‌ماند</span>
-                </span>
+                انصراف
               </button>
               <button
-                onClick={() => doDelete(true)}
-                disabled={deleting}
-                className="w-full flex items-center gap-3 border border-rose-300 bg-rose-50 hover:bg-rose-100 rounded-lg p-3 text-right transition disabled:opacity-60"
+                onClick={executeBulkDelete}
+                disabled={bulkDeleting}
+                className="inline-flex items-center gap-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-lg px-4 py-2 transition disabled:opacity-50"
               >
-                {deleting ? <Loader2 className="w-5 h-5 text-rose-600 animate-spin shrink-0" /> : <Trash2 className="w-5 h-5 text-rose-600 shrink-0" />}
-                <span>
-                  <span className="block text-sm font-bold text-rose-800">حذف قطعی از پایگاه‌داده</span>
-                  <span className="block text-xs text-rose-600 mt-0.5">همراه با کسری‌ها، انتقال‌ها و اعلان‌های وابسته — غیرقابل بازگشت</span>
-                </span>
+                {bulkDeleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                بله، همه را حذف کن
               </button>
             </div>
-            <button
-              onClick={() => setDeleteTarget(null)}
-              disabled={deleting}
-              className="w-full text-sm text-slate-600 hover:bg-slate-100 rounded-lg px-4 py-2 transition"
-            >
-              انصراف
-            </button>
           </div>
         </div>
       )}
 
-      {/* Toast */}
+      {/* ── Toast Notification ── */}
       {toast && (
-        <div className="fixed bottom-6 left-6 z-50 bg-slate-900 text-white text-sm rounded-xl shadow-2xl px-5 py-3.5 max-w-sm animate-[fadeIn_.2s_ease] flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+        <div className="fixed bottom-6 left-6 z-50 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 text-xs font-medium rounded-xl shadow-2xl px-4 py-3 max-w-sm animate-[fadeIn_.2s_ease] flex items-center gap-2">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400 dark:text-emerald-600 shrink-0" />
           <span>{toast}</span>
         </div>
       )}
-    </div>
-  );
-}
-
-function Field({
-  label,
-  value,
-  onChange,
-  placeholder,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  placeholder?: string;
-}) {
-  return (
-    <div>
-      <label className="text-xs text-slate-500 block mb-1">{label}</label>
-      <input
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="w-full border border-slate-300 rounded-lg px-2 py-2 text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100 outline-none transition"
-      />
     </div>
   );
 }

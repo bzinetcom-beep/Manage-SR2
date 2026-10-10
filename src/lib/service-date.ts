@@ -2,12 +2,12 @@ import * as jalaali from "jalaali-js";
 import { addDaysIso, addMonthsIso } from "./jalali";
 
 /**
- * مدت قانونی خدمت: ۲۱ ماه شمسی (یک سال و نه ماه).
+ * مدت قانونی خدمت: ۲۱ ماهه ۳۰ روزه (دقیقاً ۶۳۰ روز).
  * مثال: اعزام ۱۴۰۴/۱۱/۰۱  →  پایان خدمت ۱۴۰۶/۰۸/۰۱
  */
 export const LEGAL_SERVICE_MONTHS = 21;
 
-/** فقط برای نمایش نمودارها (۲۱ ماه × ۳۰ روز). محاسبه‌ی تاریخ پایان دیگر بر پایه‌ی روز نیست. */
+/** مبنای قانونی روزهای خدمت: ۲۱ ماه × ۳۰ روز = ۶۳۰ روز */
 export const LEGAL_SERVICE_DAYS = 630;
 
 export interface AdjustmentLike {
@@ -62,7 +62,14 @@ export function computeServiceEndDate(
 
 export function netAdjustmentDays(adjustments: AdjustmentLike[] = []): number {
   return adjustments.reduce((acc, a) => {
+    // مرخصی‌ها هیچ تاثیری در تاریخ پایان خدمت ندارند
+    const t = (a as any).type ? String((a as any).type) : "";
+    if (t.includes("مرخصی") || t.includes("استحقاق") || t.includes("استعلاج") || t.includes("تشویق")) {
+      return acc;
+    }
     const d = Number(a.days) || 0;
-    return acc + (a.effectDirection === "decrease" ? -d : d);
+    if (a.effectDirection === "decrease") return acc - d;
+    if (a.effectDirection === "increase") return acc + d;
+    return acc; // neutral / neither
   }, 0);
 }

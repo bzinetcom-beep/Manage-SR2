@@ -2,6 +2,7 @@ import { db } from "@/db";
 import { soldiers, serviceAdjustments, transfers } from "@/db/schema";
 import { isNull, eq, and, or, ilike, inArray, gte, lte, count, sql } from "drizzle-orm";
 import type { SessionUser } from "./auth";
+import { settledCondition } from "./service-status";
 import * as XLSX from "xlsx";
 
 // ═══════════════════════════════════════════════════════════
@@ -153,6 +154,18 @@ export async function executeAIQuery(query: AIQueryRequest, user?: SessionUser |
     // Build WHERE conditions from whitelisted filters
     const conditions: any[] = [isNull(soldiers.deletedAt)];
 
+    // طبق درخواست کاربر: تعداد سربازان تسویه شده رو از آمارها و شمارش‌ها حذف کن
+    const isExplicitlySettled =
+      query.filters?.serviceStatus === "تسویه شده" ||
+      Boolean(query.filters?.separationType);
+
+    if (!isExplicitlySettled) {
+      const excludeSettled = settledCondition("exclude");
+      if (excludeSettled) {
+        conditions.push(excludeSettled);
+      }
+    }
+
     for (const [key, value] of Object.entries(query.filters)) {
       const fieldDef = ALLOWED_FILTER_FIELDS[key as keyof typeof ALLOWED_FILTER_FIELDS];
       if (!fieldDef) continue;
@@ -170,18 +183,19 @@ export async function executeAIQuery(query: AIQueryRequest, user?: SessionUser |
 
     // Handle different intents
     if (query.intent === "count") {
-      const [{ count: total }] = await db
+      const res = await db
         .select({ count: sql<number>`count(*)` })
         .from(soldiers)
         .where(whereClause as any);
+      const total = Number(res[0]?.count) || 0;
       return {
         success: true,
-        data: [{ total: Number(total) }],
-        total: Number(total),
+        data: [{ total }],
+        total,
         visualization: query.visualization,
         export: query.export,
         intent: query.intent,
-        message: `تعداد نتایج: ${Number(total).toLocaleString("fa-IR")} سرباز`,
+        message: `تعداد نتایج: ${total.toLocaleString("fa-IR")} سرباز (بدون احتساب سربازان تسویه‌شده)`,
       };
     }
 

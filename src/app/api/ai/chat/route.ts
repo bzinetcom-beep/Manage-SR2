@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
           message: result.answer,
           understood: true,
           // A single-person answer is a statement, not a table.
-          visualization: advanced.kind === "fact" ? "none" : "table",
+          visualization: advanced.kind === "fact" || (advanced.kind === "presence" && (!result.data || result.data.length <= 1)) || advanced.kind === "leaves_summary" ? "none" : "table",
           intent: advanced.kind,
           answerKind: advanced.kind,
           candidates: result.candidates,
@@ -95,13 +95,7 @@ export async function POST(req: NextRequest) {
 
     let parsedQuery: any;
 
-    // ── LAYER 1: Try OpenAI first (if key available), fallback to Offline NLP ──
-    if (USE_OPENAI()) {
-      try {
-        const { default: OpenAI } = await import("openai");
-        const openai = new OpenAI({ apiKey: getOpenAIKey() });
-
-        const SYSTEM_PROMPT = `You are an AI assistant for a Military Personnel Management System. Convert Persian queries to structured JSON ONLY.
+    const SYSTEM_PROMPT = `You are an AI assistant for a Military Personnel Management System. Convert Persian queries to structured JSON ONLY.
 
 Available Fields: firstName, lastName, nationalCode, personnelCode, city, serviceUnit, rank, membershipType, dutyType, recruitmentType, maritalStatus, educationLevel, educationMajor, bloodType, physicalStatus, separationType, frontPresence, fatherName, birthPlace, fileNumber
 
@@ -115,6 +109,35 @@ Examples:
 "توزیع بر اساس رده خدمتی در نمودار دایره‌ای" → {"intent":"aggregate","filters":{},"groupBy":"serviceUnit","visualization":"pie","export":false,"limit":1}
 
 Return ONLY JSON. No other text.`;
+
+    // ── LAYER 1: Try Gemini first (if GEMINI_API_KEY exists), then OpenAI, then Offline NLP ──
+    const geminiKey = process.env.GEMINI_API_KEY;
+    if (geminiKey && geminiKey.length > 5 && !geminiKey.includes("placeholder")) {
+      try {
+        const { GoogleGenAI } = await import("@google/genai");
+        const ai = new GoogleGenAI({ apiKey: geminiKey });
+        const response = await ai.models.generateContent({
+          model: "gemini-2.5-flash",
+          contents: message,
+          config: {
+            systemInstruction: SYSTEM_PROMPT,
+            responseMimeType: "application/json",
+          },
+        });
+        const text = response.text;
+        if (text) {
+          parsedQuery = JSON.parse(text);
+          parsedQuery._source = "gemini";
+        }
+      } catch (geminiError: any) {
+        console.warn("[Gemini Fallback]", geminiError.message);
+      }
+    }
+
+    if (!parsedQuery && USE_OPENAI()) {
+      try {
+        const { default: OpenAI } = await import("openai");
+        const openai = new OpenAI({ apiKey: getOpenAIKey() });
 
         const completion = await openai.chat.completions.create({
           model: "gpt-4o-mini",

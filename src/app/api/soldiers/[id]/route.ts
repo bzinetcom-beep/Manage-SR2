@@ -20,11 +20,15 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     .where(and(eq(soldiers.id, id), isNull(soldiers.deletedAt)))
     .limit(1);
   if (!rows[0]) return Response.json({ error: "یافت نشد" }, { status: 404 });
-  const adj = await db
+  const rawAdj = await db
     .select()
     .from(serviceAdjustments)
     .where(eq(serviceAdjustments.soldierId, id))
     .orderBy(serviceAdjustments.id);
+  // مرخصی‌ها هیچ اثری در پایان خدمت ندارند و منحصراً در بخش مرخصی نمایش داده می‌شوند
+  const adj = rawAdj.filter(
+    (a) => !a.type || (!a.type.includes("مرخصی") && !a.type.includes("استحقاق") && !a.type.includes("استعلاج") && !a.type.includes("تشویق"))
+  );
   const trs = await db
     .select()
     .from(transfers)

@@ -8,6 +8,7 @@ import JalaliDatePicker from "@/components/JalaliDatePicker";
 import { getServiceStatus } from "@/lib/service-status";
 import { LEGAL_SERVICE_DAYS, netAdjustmentDays, computeBaseServiceEnd } from "@/lib/service-date";
 import { TRANSFER_TYPES, TRANSFER_TYPE_MISSION, TRANSFER_TYPE_PERMANENT, normalizeTransferType, pickCurrentTransfer } from "@/lib/transfer-info";
+import SoldierLeavesSection from "@/components/SoldierLeavesSection";
 
 const SECTION_ICONS: Record<string, string> = {
   "هویتی": "👤",
@@ -125,13 +126,9 @@ export default function SoldierDetailPage({ params }: { params: Promise<{ id: st
     .filter((a) => a.effectDirection === "increase")
     .reduce((s, a) => s + (Number(a.days) || 0), 0);
   const netAdj = netAdjustmentDays(adjustments); // می‌تواند منفی باشد
-  // مدت قانونی = ۲۱ ماه شمسی؛ تعداد روز واقعی آن از روی تاریخ اعزام محاسبه می‌شود
-  const legalDays = (() => {
-    const d1 = jalaliToDate(dispatchDate);
-    const d2 = jalaliToDate(computeBaseServiceEnd(dispatchDate));
-    return d1 && d2 ? Math.round((d2.getTime() - d1.getTime()) / 86400000) : LEGAL_SERVICE_DAYS;
-  })();
-  const effectiveTotalDays = legalDays + netAdj; // روز واقعی خدمت
+  // مبنای قانونی = دقیقاً ۶۳۰ روز (۲۱ ماه ۳۰ روزه) بدون تغییر در تاریخ‌های اعزام و پایان
+  const legalDays = LEGAL_SERVICE_DAYS;
+  const effectiveTotalDays = legalDays + netAdj; // روز واقعی خدمت با احتساب کسری و اضافه خدمت
 
   const today = new Date();
   const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
@@ -147,9 +144,18 @@ export default function SoldierDetailPage({ params }: { params: Promise<{ id: st
     const d1 = jalaliToDate(dispatchDate);
     if (d1) {
       baseStart = d1;
-      // تاریخ پایان مؤثر = تاریخ اعزام + ۶۳۰ + نت
-      baseEnd = new Date(d1.getTime());
-      baseEnd.setDate(baseEnd.getDate() + effectiveTotalDays);
+      const explicitEnd = val("serviceEndDate") ? jalaliToDate(val("serviceEndDate")) : null;
+      if (explicitEnd) {
+        baseEnd = explicitEnd;
+        daysRemaining = Math.round((baseEnd.getTime() - startOfToday.getTime()) / (1000 * 60 * 60 * 24));
+      } else {
+        // تاریخ پایان فرضی = تاریخ اعزام + ۶۳۰ روز + کسری/اضافه
+        baseEnd = new Date(d1.getTime());
+        baseEnd.setDate(baseEnd.getDate() + effectiveTotalDays);
+        daysRemaining = Math.round(
+          (baseEnd.getTime() - startOfToday.getTime()) / (1000 * 60 * 60 * 24),
+        );
+      }
       daysElapsed = Math.max(
         0,
         Math.min(
@@ -157,11 +163,8 @@ export default function SoldierDetailPage({ params }: { params: Promise<{ id: st
           Math.round((startOfToday.getTime() - d1.getTime()) / (1000 * 60 * 60 * 24)) + 1,
         ),
       );
-      daysRemaining = Math.round(
-        (baseEnd.getTime() - startOfToday.getTime()) / (1000 * 60 * 60 * 24),
-      );
-      hasFinished = daysRemaining < 0;
-      adjProgressRatio = effectiveTotalDays > 0 ? daysElapsed / effectiveTotalDays : 0;
+      hasFinished = daysRemaining !== null && daysRemaining <= 0;
+      adjProgressRatio = effectiveTotalDays > 0 ? Math.min(1, daysElapsed / effectiveTotalDays) : 0;
     }
   }
   const serviceProgress = Math.min(100, Math.round(adjProgressRatio * 100));
@@ -175,8 +178,8 @@ export default function SoldierDetailPage({ params }: { params: Promise<{ id: st
     return `${toFaDigits(months)} ماه و ${toFaDigits(days)} روز`;
   })();
 
-  // روزِ هم‌ارز تاریخ پایان (برچسب پایین بار)
-  const effectiveEndLabel = baseEnd ? isoToJalali(baseEnd.toISOString().slice(0, 10)) : val("serviceEndDate");
+  // نمایش تاریخ پایان (اولویت با تاریخ ثبت‌شده سرباز)
+  const effectiveEndLabel = val("serviceEndDate") || (baseEnd ? isoToJalali(baseEnd.toISOString().slice(0, 10)) : "—");
 
   // گروه‌بندی adjustment ها بر اساس نوع برای نمایش تراشه‌ها
   type AdjBucket = { label: string; days: number; tone: "emerald" | "rose" | "amber" | "indigo" };
@@ -551,6 +554,9 @@ export default function SoldierDetailPage({ params }: { params: Promise<{ id: st
             <a href={`/documents/settlement/${id}`} target="_blank" className="inline-flex items-center gap-1.5 bg-gradient-to-l from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white text-sm rounded-lg px-4 py-2 shadow-sm shadow-amber-500/20">
               ✅ فرم تسویه حساب
             </a>
+            <a href={`/documents/work-report/${id}`} target="_blank" className="inline-flex items-center gap-1.5 bg-gradient-to-l from-teal-600 to-cyan-700 hover:from-teal-700 hover:to-cyan-800 text-white text-sm rounded-lg px-4 py-2 shadow-sm shadow-teal-600/20 font-bold">
+              📊 گزارش کار
+            </a>
             {transfers.length > 0 && (
               <a href={`/documents/transfer/${transfers[0].id}`} target="_blank" className="inline-flex items-center gap-1.5 bg-gradient-to-l from-slate-700 to-slate-800 hover:from-slate-800 hover:to-slate-900 text-white text-sm rounded-lg px-4 py-2 shadow-sm">
                 📨 حکم انتقال
@@ -724,6 +730,14 @@ export default function SoldierDetailPage({ params }: { params: Promise<{ id: st
         </div>
       </div>
 
+      {/* بخش مرخصی‌های سرباز (استفاده شده و نشده) — پایین قسمت انتقال رده خدمتی */}
+      <SoldierLeavesSection
+        soldierId={id}
+        canWrite={canWrite}
+        maritalStatus={String(soldier.maritalStatus || "")}
+        onLeavesUpdated={load}
+      />
+
       {showAdj && <AdjustmentModal soldierId={id} initial={editAdj} onClose={() => { setShowAdj(false); setEditAdj(null); }} onSaved={() => { setShowAdj(false); setEditAdj(null); load(); }} />}
       {showTr && <TransferModal soldierId={id} currentUnit={String(soldier.serviceUnit || "")} initial={editTr} onClose={() => { setShowTr(false); setEditTr(null); }} onSaved={() => { setShowTr(false); setEditTr(null); load(); }} />}
     </div>
@@ -741,90 +755,167 @@ function AdjustmentModal({ soldierId, initial, onClose, onSaved }: { soldierId: 
   const isEdit = !!initial;
   const direction = ADJUSTMENT_TYPES.find((t) => t.type === type)?.direction || "increase";
 
-  async function save() {
+  async function save(e?: React.FormEvent) {
+    if (e) e.preventDefault();
     setSaving(true); setMessage(null);
     try {
       const { jalaliToIso, toEnDigits } = await import("@/lib/jalali");
-      const payload = { type, effectDirection: direction, days: Number(toEnDigits(days)) || 0, effectiveDate: effectiveDate ? jalaliToIso(effectiveDate) : null, legalDocumentNumber, description, title: type };
+      const numDays = Number(toEnDigits(days)) || 0;
+      if (!numDays || numDays <= 0) {
+        throw new Error("لطفاً تعداد روز را به صورت عدد معتبر و بزرگتر از صفر وارد فرمایید.");
+      }
+      const payload = { type, effectDirection: direction, days: numDays, effectiveDate: effectiveDate ? jalaliToIso(effectiveDate) : null, legalDocumentNumber: legalDocumentNumber.trim(), description: description.trim(), title: type };
       const res = await fetch(isEdit ? `/api/adjustments/${initial!.id}` : `/api/soldiers/${soldierId}/adjustments`, { method: isEdit ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      if (!res.ok) throw new Error("خطا");
-      setMessage({ type: "success", text: "تغییر خدمت با موفقیت ذخیره شد." });
-      setTimeout(() => onSaved(), 700);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "خطا در ذخیره اطلاعات");
+      }
+      setMessage({ type: "success", text: "تغییر تاریخ پایان خدمت با موفقیت ثبت شد." });
+      setTimeout(() => onSaved(), 600);
     } catch (e) { setMessage({ type: "error", text: (e as Error).message && (e as Error).message !== "خطا" ? (e as Error).message : "خطا در ذخیره اطلاعات. لطفاً دوباره تلاش کنید." }); }
     finally { setSaving(false); }
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto" onClick={onClose}>
-      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-lg w-full border border-slate-200 dark:border-slate-700 overflow-hidden my-8" onClick={(e) => e.stopPropagation()}>
-        {/* ── Header ── */}
-        <div className="bg-gradient-to-l from-amber-500 to-orange-600 p-5 text-white flex items-center justify-between relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-40 h-40 bg-white/10 rounded-full blur-3xl -translate-x-20 -translate-y-20" />
-          <div className="relative flex items-center gap-3">
-            <div className="p-2.5 bg-white/20 backdrop-blur-md rounded-xl text-2xl">
-              {direction === "decrease" ? "📉" : "📈"}
-            </div>
+    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto dir-rtl" onClick={onClose}>
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-lg w-full border border-slate-200 dark:border-slate-700 my-6 relative transition-all" onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div className="bg-gradient-to-l from-amber-600 to-orange-600 rounded-t-2xl p-4 text-white flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <span className="text-2xl">{direction === "decrease" ? "📉" : "📈"}</span>
             <div>
-              <h3 className="text-lg font-bold">{isEdit ? "ویرایش تغییر تاریخ پایان خدمت" : "ثبت تغییر تاریخ پایان خدمت"}</h3>
-              <p className="text-xs text-amber-100 mt-0.5">بازمحاسبه خودکار تاریخ پایان خدمت پس از ذخیره</p>
+              <h3 className="text-base font-bold">
+                {isEdit ? "ویرایش تغییر تاریخ پایان خدمت" : "ثبت تغییر تاریخ پایان خدمت (کسری / اضافه خدمت)"}
+              </h3>
+              <p className="text-[11px] text-amber-100">
+                محاسبه هوشمند و خودکار اثر تغییر بر تاریخ خاتمه خدمت
+              </p>
             </div>
           </div>
-          <button onClick={onClose} className="text-white/80 hover:text-white p-1.5 rounded-xl hover:bg-white/10 transition-colors relative z-10">✕</button>
-        </div>
-
-        <div className="p-6 space-y-5">
-          {/* ── Feedback ── */}
-          {message && (
-            <div className={`p-3 rounded-xl flex items-center gap-2 text-xs font-semibold ${message.type === "success" ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-700" : "bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-200 border border-red-300 dark:border-red-700"}`}>
-              {message.type === "success" ? "✅" : "❌"} {message.text}
-            </div>
-          )}
-
-          {/* ── Section: نوع تغییر ── */}
-          <div className="bg-amber-50/70 dark:bg-amber-900/20 p-4 rounded-xl border border-amber-200 dark:border-amber-800">
-            <div className="text-xs font-bold text-amber-800 dark:text-amber-300 mb-3 flex items-center gap-1.5">🏷️ نوع تغییر و جهت اثر</div>
-            <select value={type} onChange={(e) => setType(e.target.value)} className="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-amber-500 dark:text-slate-100">
-              {ADJUSTMENT_TYPES.map((t) => <option key={t.type} value={t.type}>{t.type}</option>)}
-            </select>
-            <div className={`mt-2 flex items-center gap-2 text-xs font-medium px-3 py-2 rounded-lg ${direction === "decrease" ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300" : "bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300"}`}>
-              <span className={`w-2.5 h-2.5 rounded-full ${direction === "decrease" ? "bg-emerald-500" : "bg-rose-500"}`} />
-              {direction === "decrease" ? "کاهشی — جلو انداختن تاریخ پایان خدمت" : "افزایشی — عقب انداختن تاریخ پایان خدمت"}
-            </div>
-          </div>
-
-          {/* ── Section: جزئیات ── */}
-          <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
-            <div className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-1.5">📋 جزئیات تغییر</div>
-            <div className="grid grid-cols-2 gap-3 mb-3">
-              <div>
-                <label className="text-xs text-slate-600 dark:text-slate-400 mb-1 block">تعداد روز <span className="text-red-500">*</span></label>
-                <input value={days} onChange={(e) => setDays(e.target.value)} dir="ltr" placeholder="مثال: ۱۵" className="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-500 dark:text-slate-100" />
-              </div>
-              <div>
-                <label className="text-xs text-slate-600 dark:text-slate-400 mb-1 block">تاریخ موثر (شمسی)</label>
-                <JalaliDatePicker value={effectiveDate} onChange={setEffectiveDate} placeholder="۱۴۰۳/۰۱/۱۵" />
-              </div>
-            </div>
-            <div className="mb-3">
-              <label className="text-xs text-slate-600 dark:text-slate-400 mb-1 block">شماره سند قانونی</label>
-              <input value={legalDocumentNumber} onChange={(e) => setDoc(e.target.value)} placeholder="مثال: م-۱۲۳۴" className="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-500 dark:text-slate-100" />
-            </div>
-            <div>
-              <label className="text-xs text-slate-600 dark:text-slate-400 mb-1 block">توضیحات</label>
-              <textarea value={description} onChange={(e) => setDesc(e.target.value)} rows={2} placeholder="توضیحات تکمیلی..." className="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-500 resize-none dark:text-slate-100" />
-            </div>
-          </div>
-
-          {/* ── Action Button ── */}
-          <button onClick={save} disabled={saving} className="w-full bg-gradient-to-l from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 disabled:opacity-50 text-white text-sm font-bold rounded-xl py-3 shadow-lg shadow-amber-500/20 transition-all flex items-center justify-center gap-2">
-            {saving ? <><span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> در حال ذخیره...</> : isEdit ? "💾 ذخیره و بازمحاسبه" : "✅ ثبت و بازمحاسبه"}
+          <button
+            onClick={onClose}
+            className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 transition"
+            aria-label="بستن"
+          >
+            ✕
           </button>
         </div>
 
-        {/* ── Footer ── */}
-        <div className="px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700 flex justify-end">
-          <button onClick={onClose} className="px-4 py-1.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-[11px] font-bold rounded-lg transition-colors">بستن</button>
-        </div>
+        <form onSubmit={save} className="p-5 space-y-4 text-xs">
+          {/* Feedback */}
+          {message && (
+            <div className={`p-2.5 rounded-lg flex items-center gap-2 font-medium ${message.type === "success" ? "bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800" : "bg-red-50 text-red-800 border border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800"}`}>
+              <span>{message.type === "success" ? "✅" : "❌"}</span>
+              <span>{message.text}</span>
+            </div>
+          )}
+
+          {/* نوع تغییر */}
+          <div>
+            <label className="block text-slate-700 dark:text-slate-200 font-bold mb-1">
+              عنوان و نوع تغییر <span className="text-red-500">*</span>
+            </label>
+            <select
+              value={type}
+              onChange={(e) => setType(e.target.value)}
+              className="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-amber-500 dark:text-slate-100 text-sm"
+            >
+              {ADJUSTMENT_TYPES.map((t) => (
+                <option key={t.type} value={t.type}>
+                  {t.type} {t.direction === "decrease" ? "(کاهشی - کسری)" : "(افزایشی - اضافه/غیبت)"}
+                </option>
+              ))}
+            </select>
+            <div className={`mt-2 flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-lg ${direction === "decrease" ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800" : "bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800"}`}>
+              <span className={`w-2 h-2 rounded-full ${direction === "decrease" ? "bg-emerald-500" : "bg-rose-500"}`} />
+              <span>{direction === "decrease" ? "کسری خدمت: جلو انداختن تاریخ ترخیص و پایان خدمت" : "اضافه خدمت / غیبت: عقب انداختن تاریخ پایان خدمت"}</span>
+            </div>
+          </div>
+
+          {/* تعداد روز و تاریخ موثر */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-slate-700 dark:text-slate-200 font-bold mb-1">
+                تعداد روز <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <input
+                  type="number"
+                  min="1"
+                  value={days}
+                  onChange={(e) => setDays(e.target.value)}
+                  placeholder="مثال: ۱۵"
+                  required
+                  className="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-amber-500 dark:text-slate-100 font-mono text-sm pl-8"
+                />
+                <span className="absolute left-3 top-2 text-slate-400 font-bold text-xs">
+                  روز
+                </span>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-slate-700 dark:text-slate-200 font-bold mb-1">
+                تاریخ مؤثر (شمسی)
+              </label>
+              <JalaliDatePicker
+                value={effectiveDate}
+                onChange={setEffectiveDate}
+                placeholder="۱۴۰۳/۰۱/۱۵"
+                align="left"
+              />
+            </div>
+          </div>
+
+          {/* شماره سند قانونی */}
+          <div>
+            <label className="block text-slate-700 dark:text-slate-200 font-medium mb-1">
+              شماره سند یا دستور قانونی
+            </label>
+            <input
+              type="text"
+              value={legalDocumentNumber}
+              onChange={(e) => setDoc(e.target.value)}
+              placeholder="مثال: م-۱۲۳۴ / بخشنامه ۹۲۸"
+              className="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-amber-500 dark:text-slate-100 text-sm"
+            />
+          </div>
+
+          {/* توضیحات */}
+          <div>
+            <label className="block text-slate-700 dark:text-slate-200 font-medium mb-1">
+              توضیحات و علت ثبت
+            </label>
+            <textarea
+              value={description}
+              onChange={(e) => setDesc(e.target.value)}
+              rows={2}
+              placeholder="توضیحات تکمیلی..."
+              className="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-amber-500 resize-none dark:text-slate-100 text-sm"
+            />
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-200 dark:border-slate-700">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-bold rounded-lg text-xs transition"
+            >
+              انصراف
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-xs transition flex items-center gap-1.5 shadow"
+            >
+              {saving ? (
+                <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+              ) : null}
+              <span>{isEdit ? "ذخیره تغییرات" : "ثبت تغییر خدمت"}</span>
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );
@@ -834,8 +925,8 @@ function TransferModal({ soldierId, currentUnit, initial, onClose, onSaved }: { 
   const isEdit = !!initial;
   const [form, setForm] = useState<Record<string, string>>(
     initial
-      ? { fromServiceUnit: initial.fromServiceUnit || "", toServiceUnit: initial.toServiceUnit || "", transferReason: initial.transferReason || "", documentNumber: initial.documentNumber || "", status: initial.status || "پیش‌نویس", transferDate: initial.transferDate ? isoToJalali(initial.transferDate, false) : "", transferType: normalizeTransferType(initial.transferType), missionStartDate: initial.missionStartDate ? isoToJalali(initial.missionStartDate, false) : "", missionEndDate: initial.missionEndDate ? isoToJalali(initial.missionEndDate, false) : "" }
-      : { fromServiceUnit: currentUnit, status: "پیش‌نویس", transferType: TRANSFER_TYPE_PERMANENT },
+      ? { fromServiceUnit: initial.fromServiceUnit || "", toServiceUnit: initial.toServiceUnit || "", transferReason: initial.transferReason || "", documentNumber: initial.documentNumber || "", status: initial.status || "پیش‌نویس", transferDate: initial.transferDate ? isoToJalali(initial.transferDate, false) : "", transferType: normalizeTransferType(initial.transferType), missionStartDate: initial.missionStartDate ? isoToJalali(initial.missionStartDate, false) : "", missionEndDate: initial.missionEndDate ? isoToJalali(initial.missionEndDate, false) : "", approvedBy: (initial as any).approvedBy || "", issuerName: (initial as any).issuerName || "", description: initial.transferReason || "" }
+      : { fromServiceUnit: currentUnit, status: "پیش‌نویس", transferType: TRANSFER_TYPE_PERMANENT, transferDate: "", documentNumber: "", transferReason: "", approvedBy: "", description: "" },
   );
   const [unitOptions, setUnitOptions] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
@@ -846,11 +937,18 @@ function TransferModal({ soldierId, currentUnit, initial, onClose, onSaved }: { 
   }, []);
 
   function set(k: string, v: string) { setForm((f) => ({ ...f, [k]: v })); }
-  async function save() {
+
+  async function save(e?: React.FormEvent) {
+    if (e) e.preventDefault();
     setSaving(true); setMessage(null);
     try {
       const { jalaliToIso } = await import("@/lib/jalali");
       const isMissionType = form.transferType === TRANSFER_TYPE_MISSION;
+
+      if (!form.toServiceUnit?.trim()) {
+        throw new Error("لطفاً رده خدمتی مقصد را انتخاب فرمایید.");
+      }
+
       const payload = {
         ...form,
         transferDate: form.transferDate ? jalaliToIso(form.transferDate) : null,
@@ -860,136 +958,271 @@ function TransferModal({ soldierId, currentUnit, initial, onClose, onSaved }: { 
       const res = await fetch(isEdit ? `/api/transfers/${initial!.id}` : `/api/soldiers/${soldierId}/transfers`, { method: isEdit ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || "خطا");
+        throw new Error(err.error || "خطا در ثبت انتقال");
       }
-      setMessage({ type: "success", text: "انتقال با موفقیت ثبت شد." });
-      setTimeout(() => onSaved(), 700);
+      setMessage({ type: "success", text: "انتقال رده خدمتی با موفقیت ثبت شد." });
+      setTimeout(() => onSaved(), 600);
     } catch (e) { setMessage({ type: "error", text: (e as Error).message && (e as Error).message !== "خطا" ? (e as Error).message : "خطا در ذخیره اطلاعات. لطفاً دوباره تلاش کنید." }); }
     finally { setSaving(false); }
   }
 
-  const fields: [string, string][] = [["transferReason", "علت انتقال"], ["documentNumber", "شماره سند"], ["approvedBy", "تاییدکننده"], ["issuerName", "نام صادرکننده"], ["issuerRole", "سمت صادرکننده"]];
+  const isMission = form.transferType === TRANSFER_TYPE_MISSION;
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto" onClick={onClose}>
-      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-md w-full border border-slate-200 dark:border-slate-700 overflow-hidden" onClick={(e) => e.stopPropagation()}>
-        {/* ── Header ── */}
-        <div className="bg-gradient-to-l from-indigo-600 to-purple-700 px-5 py-3.5 text-white flex items-center justify-between relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-32 h-32 bg-white/10 rounded-full blur-3xl -translate-x-16 -translate-y-16" />
-          <div className="relative flex items-center gap-2.5">
-            <div className="p-2 bg-white/20 backdrop-blur-md rounded-lg text-lg">🔄</div>
+    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto dir-rtl" onClick={onClose}>
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-lg w-full border border-slate-200 dark:border-slate-700 my-6 relative transition-all" onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div className="bg-gradient-to-l from-indigo-600 to-purple-700 rounded-t-2xl p-4 text-white flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <span className="text-2xl">🔄</span>
             <div>
-              <h3 className="text-sm font-bold">{isEdit ? "ویرایش انتقال" : "ثبت انتقال"}</h3>
-              <p className="text-[10px] text-indigo-100">انتقال بین رده‌های خدمتی</p>
+              <h3 className="text-base font-bold">
+                {isEdit ? "ویرایش انتقال رده خدمتی" : "ثبت انتقال رده خدمتی"}
+              </h3>
+              <p className="text-[11px] text-indigo-100">
+                انتقال قطعی یا مأموریت موقت بین رده‌های مصوب
+              </p>
             </div>
           </div>
-          <button onClick={onClose} className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors relative z-10 text-sm">✕</button>
-        </div>
-
-        <div className="p-4 space-y-3">
-          {/* ── Feedback ── */}
-          {message && (
-            <div className={`p-3 rounded-xl flex items-center gap-2 text-xs font-semibold ${message.type === "success" ? "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-700" : "bg-red-100 dark:bg-red-900/40 text-red-800 dark:text-red-200 border border-red-300 dark:border-red-700"}`}>
-              {message.type === "success" ? "✅" : "❌"} {message.text}
-            </div>
-          )}
-
-          {/* ── نوع انتقال (منوی آبشاری) ── */}
-          <div className="bg-amber-50/70 dark:bg-amber-900/20 p-3 rounded-xl border border-amber-200 dark:border-amber-800">
-            <label className="text-[11px] font-bold text-amber-800 dark:text-amber-300 mb-2 flex items-center gap-1.5">🧭 نوع انتقال <span className="text-red-500">*</span></label>
-            <select
-              value={form.transferType || TRANSFER_TYPE_PERMANENT}
-              onChange={(e) => set("transferType", e.target.value)}
-              className="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-500 dark:text-slate-100"
-            >
-              {TRANSFER_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-            </select>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5 leading-5">
-              {form.transferType === TRANSFER_TYPE_MISSION
-                ? "مامور: سرباز به‌صورت موقت در رده‌ی مقصد خدمت می‌کند و پس از پایان ماموریت باید به رده‌ی جدیدی منتقل شود."
-                : "انتقال دائم: سرباز به‌صورت دائم در رده‌ی مقصد مشغول خدمت خواهد شد."}
-            </p>
-            {form.transferType === TRANSFER_TYPE_MISSION && (
-              <div className="grid grid-cols-2 gap-2 mt-3">
-                <div>
-                  <label className="text-xs text-slate-600 dark:text-slate-400 mb-1 block">تاریخ معرفی <span className="text-red-500">*</span></label>
-                  <JalaliDatePicker value={form.missionStartDate || ""} onChange={(v) => set("missionStartDate", v)} placeholder="۱۴۰۵/۰۱/۰۱" />
-                </div>
-                <div>
-                  <label className="text-xs text-slate-600 dark:text-slate-400 mb-1 block">تاریخ پایان ماموریت <span className="text-red-500">*</span></label>
-                  <JalaliDatePicker value={form.missionEndDate || ""} onChange={(v) => set("missionEndDate", v)} placeholder="۱۴۰۵/۰۶/۰۱" />
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* ── Section 1: تاریخ و رده‌ها ── */}
-          <div className="bg-indigo-50/70 dark:bg-indigo-900/20 p-3 rounded-xl border border-indigo-200 dark:border-indigo-800">
-            <div className="text-[11px] font-bold text-indigo-800 dark:text-indigo-300 mb-2 flex items-center gap-1.5">📍 مبدأ، مقصد و تاریخ</div>
-            <div className="grid grid-cols-2 gap-2 mb-2">
-              <div className="col-span-2">
-                <label className="text-xs text-slate-600 dark:text-slate-400 mb-1 block">تاریخ انتقال (شمسی)</label>
-                <JalaliDatePicker value={form.transferDate || ""} onChange={(v) => set("transferDate", v)} placeholder="۱۴۰۳/۰۱/۱۵" />
-              </div>
-              <div>
-                <label className="text-xs text-slate-600 dark:text-slate-400 mb-1 block">از رده مبدأ <span className="text-red-500">*</span></label>
-                <select value={form.fromServiceUnit || ""} onChange={(e) => set("fromServiceUnit", e.target.value)} className="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 dark:text-slate-100">
-                  <option value="">— انتخاب رده مبدأ —</option>
-                  {unitOptions.map((u) => <option key={"f-" + u} value={u}>{u}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-xs text-slate-600 dark:text-slate-400 mb-1 block">به رده مقصد <span className="text-red-500">*</span></label>
-                <select value={form.toServiceUnit || ""} onChange={(e) => set("toServiceUnit", e.target.value)} className="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 dark:text-slate-100">
-                  <option value="">— انتخاب رده مقصد —</option>
-                  {unitOptions.map((u) => <option key={"t-" + u} value={u}>{u}</option>)}
-                </select>
-              </div>
-            </div>
-          </div>
-
-          {/* ── Section 2: اطلاعات سند ── */}
-          <div className="bg-slate-50 dark:bg-slate-900/50 p-3 rounded-lg border border-slate-200 dark:border-slate-700">
-            <div className="text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-1.5">📄 اطلاعات سند و تاییدات</div>
-            <div className="grid grid-cols-2 gap-2">
-              {fields.map(([k, label]) => (
-                <div key={k}>
-                  <label className="text-xs text-slate-600 dark:text-slate-400 mb-1 block">{label}</label>
-                  <input value={form[k] || ""} onChange={(e) => set(k, e.target.value)} placeholder={label} className="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 dark:text-slate-100" />
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* ── Section 3: وضعیت و توضیحات ── */}
-          <div className="bg-slate-50 dark:bg-slate-900/50 p-3 rounded-lg border border-slate-200 dark:border-slate-700">
-            <div className="text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-1.5">📌 وضعیت و توضیحات</div>
-            <div className="grid grid-cols-2 gap-2 mb-2">
-              <div>
-                <label className="text-xs text-slate-600 dark:text-slate-400 mb-1 block">وضعیت انتقال</label>
-                <select value={form.status} onChange={(e) => set("status", e.target.value)} className="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 dark:text-slate-100">
-                  <option value="پیش‌نویس">📝 پیش‌نویس</option>
-                  <option value="تایید شده">✅ تایید شده</option>
-                  <option value="لغو شده">❌ لغو شده</option>
-                </select>
-              </div>
-            </div>
-            <div>
-              <label className="text-xs text-slate-600 dark:text-slate-400 mb-1 block">توضیحات</label>
-              <textarea value={form.description || ""} onChange={(e) => set("description", e.target.value)} rows={2} placeholder="توضیحات تکمیلی..." className="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500 resize-none dark:text-slate-100" />
-            </div>
-          </div>
-
-          {/* ── Action Button ── */}
-          <button onClick={save} disabled={saving} className="w-full bg-gradient-to-l from-indigo-600 to-purple-700 hover:from-indigo-700 hover:to-purple-800 disabled:opacity-50 text-white text-xs font-bold rounded-lg py-2.5 shadow-lg shadow-indigo-500/20 transition-all flex items-center justify-center gap-2">
-            {saving ? <><span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> در حال ذخیره...</> : isEdit ? "💾 ذخیره تغییرات" : "✅ ثبت انتقال"}
+          <button
+            onClick={onClose}
+            className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10 transition"
+            aria-label="بستن"
+          >
+            ✕
           </button>
         </div>
 
-        {/* ── Footer ── */}
-        <div className="px-6 py-3 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700 flex justify-end">
-          <button onClick={onClose} className="px-5 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-xl transition-colors">بستن</button>
-        </div>
+        <form onSubmit={save} className="p-5 space-y-4 text-xs">
+          {/* Feedback */}
+          {message && (
+            <div className={`p-2.5 rounded-lg flex items-center gap-2 font-medium ${message.type === "success" ? "bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800" : "bg-red-50 text-red-800 border border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800"}`}>
+              <span>{message.type === "success" ? "✅" : "❌"}</span>
+              <span>{message.text}</span>
+            </div>
+          )}
+
+          {/* نوع انتقال - دو گزینه شیک */}
+          <div>
+            <label className="block text-slate-700 dark:text-slate-200 font-bold mb-1.5">
+              نوع انتقال <span className="text-red-500">*</span>
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <label
+                className={`flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer font-bold transition ${
+                  form.transferType !== TRANSFER_TYPE_MISSION
+                    ? "bg-indigo-50 border-indigo-500 text-indigo-900 dark:bg-indigo-950/40 dark:border-indigo-400 dark:text-indigo-200"
+                    : "bg-slate-50 border-slate-200 text-slate-600 dark:bg-slate-700/50 dark:border-slate-600 dark:text-slate-300"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="transferType"
+                  value={TRANSFER_TYPE_PERMANENT}
+                  checked={form.transferType !== TRANSFER_TYPE_MISSION}
+                  onChange={() => set("transferType", TRANSFER_TYPE_PERMANENT)}
+                />
+                <span>🏢 انتقال دائم (قطعی)</span>
+              </label>
+
+              <label
+                className={`flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer font-bold transition ${
+                  form.transferType === TRANSFER_TYPE_MISSION
+                    ? "bg-amber-50 border-amber-500 text-amber-900 dark:bg-amber-950/40 dark:border-amber-400 dark:text-amber-200"
+                    : "bg-slate-50 border-slate-200 text-slate-600 dark:bg-slate-700/50 dark:border-slate-600 dark:text-slate-300"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="transferType"
+                  value={TRANSFER_TYPE_MISSION}
+                  checked={form.transferType === TRANSFER_TYPE_MISSION}
+                  onChange={() => set("transferType", TRANSFER_TYPE_MISSION)}
+                />
+                <span>⏱️ مأمور به خدمت (موقت)</span>
+              </label>
+            </div>
+          </div>
+
+          {/* در صورت مأمور بودن: بازه مأموریت */}
+          {isMission && (
+            <div className="p-3 bg-amber-50/70 dark:bg-amber-950/30 rounded-xl border border-amber-200 dark:border-amber-800 space-y-2">
+              <div className="text-[11px] font-bold text-amber-900 dark:text-amber-300">
+                تاریخ‌های دوره مأموریت موقت:
+              </div>
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="block text-slate-600 dark:text-slate-400 mb-1">
+                    از تاریخ (شروع مأموریت) <span className="text-red-500">*</span>
+                  </label>
+                  <JalaliDatePicker
+                    value={form.missionStartDate || ""}
+                    onChange={(v) => set("missionStartDate", v)}
+                    placeholder="۱۴۰۴/۰۱/۱۵"
+                    align="right"
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-600 dark:text-slate-400 mb-1">
+                    تا تاریخ (پایان مأموریت) <span className="text-red-500">*</span>
+                  </label>
+                  <JalaliDatePicker
+                    value={form.missionEndDate || ""}
+                    onChange={(v) => set("missionEndDate", v)}
+                    placeholder="۱۴۰۴/۰۶/۱۵"
+                    align="left"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* تاریخ انتقال و وضعیت */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-slate-700 dark:text-slate-200 font-bold mb-1">
+                تاریخ صدور / اجرای انتقال (شمسی)
+              </label>
+              <JalaliDatePicker
+                value={form.transferDate || ""}
+                onChange={(v) => set("transferDate", v)}
+                placeholder="۱۴۰۳/۰۱/۱۵"
+                align="right"
+              />
+            </div>
+            <div>
+              <label className="block text-slate-700 dark:text-slate-200 font-bold mb-1">
+                وضعیت حکم انتقال
+              </label>
+              <select
+                value={form.status || "پیش‌نویس"}
+                onChange={(e) => set("status", e.target.value)}
+                className="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500 dark:text-slate-100 text-sm"
+              >
+                <option value="پیش‌نویس">📝 پیش‌نویس</option>
+                <option value="تایید شده">✅ تایید شده</option>
+                <option value="لغو شده">❌ لغو شده</option>
+              </select>
+            </div>
+          </div>
+
+          {/* رده مبدأ و مقصد */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-slate-700 dark:text-slate-200 font-bold mb-1">
+                از رده مبدأ <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={form.fromServiceUnit || ""}
+                onChange={(e) => set("fromServiceUnit", e.target.value)}
+                className="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500 dark:text-slate-100 text-sm"
+              >
+                <option value="">— انتخاب رده مبدأ —</option>
+                {unitOptions.map((u) => (
+                  <option key={"f-" + u} value={u}>
+                    {u}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-slate-700 dark:text-slate-200 font-bold mb-1">
+                به رده مقصد <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={form.toServiceUnit || ""}
+                onChange={(e) => set("toServiceUnit", e.target.value)}
+                className="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500 dark:text-slate-100 text-sm"
+                required
+              >
+                <option value="">— انتخاب رده مقصد —</option>
+                {unitOptions.map((u) => (
+                  <option key={"t-" + u} value={u}>
+                    {u}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* شماره سند و علت انتقال */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-slate-700 dark:text-slate-200 font-medium mb-1">
+                شماره نامه / ابلاغیه
+              </label>
+              <input
+                type="text"
+                value={form.documentNumber || ""}
+                onChange={(e) => set("documentNumber", e.target.value)}
+                placeholder="مثال: ۴۴/۱/۲۵۰"
+                className="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500 dark:text-slate-100 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-slate-700 dark:text-slate-200 font-medium mb-1">
+                علت انتقال
+              </label>
+              <input
+                type="text"
+                value={form.transferReason || ""}
+                onChange={(e) => set("transferReason", e.target.value)}
+                placeholder="تکمیل کادر، نیاز عملیاتی و..."
+                className="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500 dark:text-slate-100 text-sm"
+              />
+            </div>
+          </div>
+
+          {/* مقام تاییدکننده و توضیحات */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-slate-700 dark:text-slate-200 font-medium mb-1">
+                مقام صادرکننده / تاییدکننده
+              </label>
+              <input
+                type="text"
+                value={form.approvedBy || ""}
+                onChange={(e) => set("approvedBy", e.target.value)}
+                placeholder="مثال: معاونت نیروی انسانی"
+                className="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500 dark:text-slate-100 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-slate-700 dark:text-slate-200 font-medium mb-1">
+                توضیحات تکمیلی
+              </label>
+              <input
+                type="text"
+                value={form.description || ""}
+                onChange={(e) => set("description", e.target.value)}
+                placeholder="توضیحات یا ملاحظات..."
+                className="w-full border border-slate-300 dark:border-slate-600 dark:bg-slate-700 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500 dark:text-slate-100 text-sm"
+              />
+            </div>
+          </div>
+
+          {/* Action buttons */}
+          <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-200 dark:border-slate-700">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-bold rounded-lg text-xs transition"
+            >
+              انصراف
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-xs transition flex items-center gap-1.5 shadow"
+            >
+              {saving ? (
+                <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+              ) : null}
+              <span>{isEdit ? "ذخیره تغییرات" : "ثبت انتقال"}</span>
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

@@ -23,16 +23,11 @@ REM --------------------------- locate Node.js --------------------------------
 set "NODE_EXE="
 where node >nul 2>&1 && set "NODE_EXE=node"
 
-if not defined NODE_EXE (
-  for %%P in (
-    "%ProgramFiles%\nodejs\node.exe"
-    "%ProgramFiles(x86)%\nodejs\node.exe"
-    "%LOCALAPPDATA%\Programs\nodejs\node.exe"
-    "%~dp0..\runtime\node\node.exe"
-  ) do (
-    if exist "%%~P" set "NODE_EXE=%%~P"
-  )
-)
+if not defined NODE_EXE if exist "%ProgramFiles%\nodejs\node.exe" set "NODE_EXE=%ProgramFiles%\nodejs\node.exe"
+if not defined NODE_EXE if exist "%LOCALAPPDATA%\Programs\nodejs\node.exe" set "NODE_EXE=%LOCALAPPDATA%\Programs\nodejs\node.exe"
+if not defined NODE_EXE if exist "%ProgramFiles(x86)%\nodejs\node.exe" set "NODE_EXE=%ProgramFiles(x86)%\nodejs\node.exe"
+if not defined NODE_EXE if exist "%APPDATA%\npm\node.exe" set "NODE_EXE=%APPDATA%\npm\node.exe"
+if not defined NODE_EXE if exist "%~dp0..\runtime\node\node.exe" set "NODE_EXE=%~dp0..\runtime\node\node.exe"
 
 if not defined NODE_EXE (
   echo   [X] Node.js on this computer was not found.

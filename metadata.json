@@ -1,0 +1,7 @@
+{
+  "name": "سامانه مدیریت منابع سرباز",
+  "description": "سامانه جامع ثبت، مدیریت و گزارشگیری منابع سرباز",
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

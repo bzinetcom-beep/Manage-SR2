@@ -67,7 +67,7 @@ const FILTER_FIELDS: { key: string; label: string; options: { label: string; val
   { key: "educationLevel", label: "مدرک تحصیلی", options: EDUCATION_OPTIONS.map(o => ({ label: o, value: o })) },
   { key: "rank", label: "درجه", options: RANK_OPTIONS.map(o => ({ label: o, value: o })) },
   { key: "membershipType", label: "نوع عضویت", options: MEMBERSHIP_OPTIONS.map(o => ({ label: o, value: o })) },
-  { key: "physicalStatus", label: "وضعیت جسمانی", options: PHYSICAL_OPTIONS.map(o => ({ label: o, value: o })) },
+  { key: "physicalStatus", label: "وضعیت جسمانی", options: [{ label: "سالم", value: "سالم" }, { label: "معاف از رزم", value: "معاف از رزم" }] },
   { key: "transferType", label: "نوع انتقال", options: ["انتقال دائم", "مامور"].map(o => ({ label: o, value: o })) },
 ];
 

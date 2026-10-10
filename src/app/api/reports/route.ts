@@ -142,7 +142,7 @@ export async function GET(req: Request) {
 
   const finalWhere = and(...finalConds);
 
-  const [totalRes, byUnit, byCity, byEducation, byMarital, byRank, byBlood, byRecruitment, transfersRes, adjRes, mamoorRes, byTransferType] = await Promise.all([
+  const [totalRes, byUnit, byCity, byEducation, byMarital, byRank, byBlood, byPhysical, byRecruitment, transfersRes, adjRes, mamoorRes, byTransferType] = await Promise.all([
     db.select({ count: sql<number>`count(*)` }).from(soldiers).where(finalWhere),
     db.select({ label: soldiers.serviceUnit, value: sql<number>`count(*)` }).from(soldiers).where(finalWhere).groupBy(soldiers.serviceUnit).orderBy(sql`count(*) DESC`),
     db.select({ label: soldiers.city, value: sql<number>`count(*)` }).from(soldiers).where(finalWhere).groupBy(soldiers.city).orderBy(sql`count(*) DESC`),
@@ -150,6 +150,7 @@ export async function GET(req: Request) {
     db.select({ label: soldiers.maritalStatus, value: sql<number>`count(*)` }).from(soldiers).where(finalWhere).groupBy(soldiers.maritalStatus).orderBy(sql`count(*) DESC`),
     db.select({ label: soldiers.rank, value: sql<number>`count(*)` }).from(soldiers).where(finalWhere).groupBy(soldiers.rank).orderBy(sql`count(*) DESC`),
     db.select({ label: soldiers.bloodType, value: sql<number>`count(*)` }).from(soldiers).where(finalWhere).groupBy(soldiers.bloodType).orderBy(sql`count(*) DESC`),
+    db.select({ label: soldiers.physicalStatus, value: sql<number>`count(*)` }).from(soldiers).where(finalWhere).groupBy(soldiers.physicalStatus).orderBy(sql`count(*) DESC`),
     db.select({ label: soldiers.recruitmentType, value: sql<number>`count(*)` }).from(soldiers).where(finalWhere).groupBy(soldiers.recruitmentType).orderBy(sql`count(*) DESC`),
     db.select({ count: sql<number>`count(*)` }).from(transfers),
     db.select({ count: sql<number>`count(*)` }).from(serviceAdjustments),
@@ -158,6 +159,22 @@ export async function GET(req: Request) {
   ]);
 
   const total = Number(totalRes[0]?.count) || 0;
+
+  // وضعیت جسمانی صرفاً شامل دو حالت «سالم» و «معاف از رزم»
+  const rawPhysical = clean(byPhysical);
+  let salemCount = 0;
+  let moafCount = 0;
+  for (const item of rawPhysical) {
+    if (item.label === "معاف از رزم") {
+      moafCount += item.value;
+    } else if (item.label === "سالم") {
+      salemCount += item.value;
+    }
+  }
+  const cleanPhysical = [
+    { label: "سالم", value: salemCount },
+    { label: "معاف از رزم", value: moafCount },
+  ];
 
   const trendRows = await db.execute(sql`
     SELECT SUBSTRING(dispatch_date, 1, 4) AS yr, count(*) AS cnt
@@ -198,6 +215,7 @@ export async function GET(req: Request) {
     },
     byUnit: clean(byUnit), byCity: clean(byCity), byEducation: clean(byEducation),
     byMarital: clean(byMarital), byRank: clean(byRank), byBlood: clean(byBlood),
+    byPhysical: cleanPhysical,
     byRecruitment: clean(byRecruitment),
     byTransferType: byTransferType.filter((r) => r.type).map((r) => ({ label: r.type as string, value: Number(r.count) })),
     dispatchTrend, totalFiltered: total, soldiers: soldierList,

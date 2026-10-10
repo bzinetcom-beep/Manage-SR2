@@ -3,9 +3,15 @@ import type { ReactNode } from "react";
 import ThemeProvider from "@/components/ThemeProvider";
 import "./globals.css";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "سامانه مدیریت منابع سرباز",
   description: "سامانه جامع ثبت، مدیریت و گزارش‌گیری منابع سرباز",
+  openGraph: {
+    title: "سامانه مدیریت منابع سرباز",
+    description: "سامانه جامع ثبت، مدیریت و گزارش‌گیری منابع سرباز",
+  },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
